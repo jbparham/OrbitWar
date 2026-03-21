@@ -2083,6 +2083,10 @@ class Renderer {
     if(this.eng.state)this._drawCombatTargets();
     // Supply counter glow when an OWP/Shuttle is selected
     if(this.eng.state)this._drawSupplyGlow();
+    // EWR selected: bright scoring cone outline + "+3VP" label
+    if(this.eng.state)this._drawSelectedEWRCone();
+    // Setup ring guide during placement
+    if(typeof ui!=='undefined'&&ui.mode==='place')this._drawSetupRingGuide();
     // CJS radius on hover
     if(this.hovered&&this.eng.state)this._drawCJSRadius(this.hovered);
     if(this.eng.state)this._drawOrbTrails();
@@ -2156,6 +2160,93 @@ class Renderer {
     supplies.forEach(s=>{
       this._hlHex(s.hex,'rgba(255,200,64,.15)','rgba(255,200,64,.8)',2);
     });
+  }
+
+  // Ring number labels drawn over the board during unit placement to help players
+  // understand which orbit ring they're placing into.
+  _drawSetupRingGuide(){
+    const ctx=this.ctx;
+    ctx.save();
+    for(let ring=1;ring<=10;ring++){
+      // Rightmost hex on each ring: {q:ring, r:0}
+      const px=this.h2p({q:ring,r:0});
+      const sz=this.sz;
+      const lx=px.x+sz*1.15, ly=px.y;
+      // ELR zone (rings 1–3) in gold, outer rings in teal
+      const isElr=ring<=3;
+      const col=isElr?'rgba(255,210,64,0.85)':'rgba(0,220,160,0.65)';
+      const fs=Math.max(9,Math.min(14,sz*0.58));
+      ctx.font=`bold ${fs}px monospace`;
+      ctx.textAlign='left'; ctx.textBaseline='middle';
+      ctx.lineWidth=3; ctx.strokeStyle='rgba(0,0,0,0.75)';
+      ctx.strokeText(`R${ring}`,lx,ly);
+      ctx.fillStyle=col;
+      ctx.fillText(`R${ring}`,lx,ly);
+      // Small ELR tag for rings 1–3
+      if(isElr){
+        const fs2=Math.max(7,Math.min(10,sz*0.42));
+        ctx.font=`${fs2}px monospace`;
+        ctx.lineWidth=2;
+        ctx.strokeText('ELR',lx,ly+fs*0.85);
+        ctx.fillStyle='rgba(255,210,64,0.55)';
+        ctx.fillText('ELR',lx,ly+fs*0.85);
+      }
+    }
+    // Hint bar at top of canvas
+    const ep=this.h2p({q:0,r:0});
+    const hfs=Math.max(10,Math.min(13,this.sz*0.5));
+    ctx.font=`${hfs}px monospace`;
+    ctx.textAlign='center'; ctx.textBaseline='top';
+    ctx.lineWidth=3; ctx.strokeStyle='rgba(0,0,0,0.85)';
+    const hint='📍 Click a hex to place unit · R1–3 = ELR launch zone (Earth reach) · R1–10 = valid orbit';
+    ctx.strokeText(hint,ep.x,8);
+    ctx.fillStyle='rgba(255,220,100,0.8)';
+    ctx.fillText(hint,ep.x,8);
+    ctx.restore();
+  }
+
+  // When an EWR is selected, draw a brighter outlined cone showing exactly where it scores,
+  // plus a "+3VP/turn" label so players know where to move it.
+  _drawSelectedEWRCone(){
+    const sel=this.sel;
+    if(!sel||sel.typeId!=='EWR'||!sel.hex||sel.destroyed)return;
+    const eng=this.eng; if(!eng.state)return;
+    const targetSide=sel.side==='usa'?'apu':'usa';
+    const rot=(eng.state.earthRot||0)*60;
+    const center=targetSide==='usa'?((270-rot)%360+360)%360:((90-rot)%360+360)%360;
+    const ep=this.h2p({q:0,r:0});
+    const mr=this.sz*this.MAX*2;
+    const a=center*Math.PI/180;
+    const isScoring=eng._inEnemyCone(sel);
+    const col=isScoring?'rgba(0,255,120,0.75)':'rgba(255,200,64,0.75)';
+    const ctx=this.ctx;
+    ctx.save();
+    // Bright outlined cone boundary
+    ctx.strokeStyle=col;
+    ctx.lineWidth=1.8;
+    ctx.setLineDash([8,5]);
+    ctx.globalAlpha=0.75;
+    ctx.beginPath();
+    ctx.moveTo(ep.x,ep.y);
+    ctx.lineTo(ep.x+mr*Math.cos(a-Math.PI/3),ep.y+mr*Math.sin(a-Math.PI/3));
+    ctx.moveTo(ep.x,ep.y);
+    ctx.lineTo(ep.x+mr*Math.cos(a+Math.PI/3),ep.y+mr*Math.sin(a+Math.PI/3));
+    ctx.stroke();
+    ctx.setLineDash([]);
+    // Label at mid-range inside cone
+    const lx=ep.x+mr*0.58*Math.cos(a);
+    const ly=ep.y+mr*0.58*Math.sin(a);
+    ctx.globalAlpha=0.95;
+    ctx.fillStyle=col;
+    ctx.strokeStyle='rgba(0,0,0,0.7)';
+    ctx.lineWidth=3;
+    const fs=Math.max(10,this.sz*0.38);
+    ctx.font=`bold ${fs}px monospace`;
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    const label=isScoring?'★ +3VP/turn':'Move here → +3VP/turn';
+    ctx.strokeText(label,lx,ly);
+    ctx.fillText(label,lx,ly);
+    ctx.restore();
   }
 
   // Draw orbital movement trails — polyline following the ring arc, not a straight cut
@@ -2370,14 +2461,25 @@ class Renderer {
     if(!s||!['LAUNCH_A','LAUNCH_B'].includes(s.phase))return;
     const launchers=this.eng.getOLRLaunchers(s.activePlayer);
     launchers.forEach(u=>{
-      if(!u.hex||(u.olrsFiredThisTurn||0)>=3)return;
-      this._hlHex(u.hex,'rgba(255,165,0,.12)','rgba(255,165,0,.7)',1.5);
-      // Small rocket badge in corner
+      if(!u.hex||(u.olrsFiredThisTurn||0)>=3||u.attackedThisTurn)return;
+      const hasAmmo=u.weapons&&(u.weapons.missiles>0||u.weapons.mines>0||u.weapons.nukes>0);
+      if(!hasAmmo)return;
+      this._hlHex(u.hex,'rgba(255,165,0,.14)','rgba(255,165,0,.85)',1.8);
       const px=this.h2p(u.hex),ctx=this.ctx;
       ctx.save();
-      ctx.font=`${Math.max(9,this.sz*.38)}px serif`;
+      // Rocket badge top-right
+      ctx.font=`${Math.max(10,this.sz*.40)}px serif`;
       ctx.textAlign='right'; ctx.textBaseline='top';
-      ctx.fillText('🚀',px.x+this.sz*.85,px.y-this.sz*.9);
+      ctx.fillText('🚀',px.x+this.sz*.88,px.y-this.sz*.92);
+      // "OLR" label below rocket, distinct orange text
+      ctx.globalAlpha=0.92;
+      ctx.fillStyle='rgba(255,165,0,1)';
+      ctx.strokeStyle='rgba(0,0,0,0.7)';
+      ctx.lineWidth=2.5;
+      ctx.font=`bold ${Math.max(7,this.sz*.28)}px monospace`;
+      ctx.textAlign='center'; ctx.textBaseline='bottom';
+      ctx.strokeText('OLR',px.x+this.sz*.55,px.y-this.sz*.58);
+      ctx.fillText('OLR',px.x+this.sz*.55,px.y-this.sz*.58);
       ctx.restore();
     });
   }
@@ -2722,6 +2824,22 @@ class Renderer {
         ctx.textAlign='center';ctx.textBaseline='middle';
         ctx.fillText('NEW',px.x,px.y+s*.73);
         ctx.restore();
+      }
+      // Resupply available badge — ⛽ bottom-left when friendly Supply is co-located during OPT phases
+      if(['OWP','SHUTTLE','SS'].includes(u.typeId)&&!u.resupplying&&this.eng.state){
+        const phase=this.eng.state.phase;
+        if(['OPT_A','OPT_B'].includes(phase)){
+          const hasSupply=this.eng.state.units.some(sp=>
+            sp.typeId==='SUPPLY'&&!sp.destroyed&&sp.hex&&sp.side===u.side&&
+            sp.hex.q===u.hex.q&&sp.hex.r===u.hex.r);
+          if(hasSupply){
+            ctx.save();ctx.globalAlpha=1;
+            ctx.font=`${Math.max(8,s*.36)}px serif`;
+            ctx.textAlign='left';ctx.textBaseline='bottom';
+            ctx.fillText('⛽',px.x-s*.9,px.y+s*.92);
+            ctx.restore();
+          }
+        }
       }
       // EWR/COM — show whether unit is currently scoring
       if((u.typeId==='EWR'||u.typeId==='COM')&&this.eng.state&&!u.faceDown){
@@ -3781,7 +3899,9 @@ class UI {
     if(toPlace.length){
       this.pendingPlace=toPlace[0];
       s.activePlayer=cur;
-      this._setStatus(`${cur.toUpperCase()} — Place: ${this.pendingPlace.type.name} · Click a hex (ring 1–10)`);
+      const placedCur=cur===pA?placedA:placedB;
+      const totalCur=placedCur+toPlace.length;
+      this._setStatus(`${cur.toUpperCase()} — Place: ${this.pendingPlace.type.name} · ${placedCur+1}/${totalCur} · Click a ring 1–10 hex`);
       this._updateTopBar();
     }
   }
@@ -3912,6 +4032,42 @@ class UI {
       return;
     }
 
+    // COMBAT SHORTCUT: clicking any hex with mixed units triggers combat directly
+    // when exactly one side has a ready attacker, skipping the unit-panel step.
+    if(isCombatPhase&&units.length){
+      const canAtk=u=>!u.destroyed&&!u.faceDown&&u.type.atk>0&&!u.attackedThisTurn&&
+                      !u.resupplying&&!(u.typeId==='OWP'&&(u.olrsFiredThisTurn||0)>0);
+      const usaReady=units.filter(u=>u.side==='usa'&&canAtk(u)).sort((a,b)=>b.type.atk-a.type.atk);
+      const apuReady=units.filter(u=>u.side==='apu'&&canAtk(u)).sort((a,b)=>b.type.atk-a.type.atk);
+      const usaPresent=units.some(u=>u.side==='usa'&&!u.destroyed&&!u.faceDown);
+      const apuPresent=units.some(u=>u.side==='apu'&&!u.destroyed&&!u.faceDown);
+      const pri={SS:0,OWP:1,HK:2,CJS:3,EWR:4,COM:5,SHUTTLE:6,SUPPLY:7};
+      // Both sides present and exactly one has a ready attacker → shortcut to combat dialog
+      if(usaPresent&&apuPresent){
+        const atkSide=usaReady.length&&!apuReady.length?'usa':apuReady.length&&!usaReady.length?'apu':null;
+        if(atkSide){
+          const atk=(atkSide==='usa'?usaReady:apuReady)[0];
+          const enemies=units.filter(u=>u.side!==atkSide&&!u.destroyed&&!u.faceDown&&u.typeId!=='MINE')
+                             .sort((a,b)=>(pri[a.typeId]??9)-(pri[b.typeId]??9));
+          if(enemies.length){
+            if(enemies.length===1){const d=enemies[0];this._showCombat(atk,d,atk.type.atk,this.eng._effDef(d),crt(atk.type.atk,this.eng._effDef(d)));}
+            else this._showTargetPicker(atk,enemies);
+            return;
+          }
+        }
+        // Both sides ready — fall through to normal selection so player can choose who attacks
+      } else if(!usaPresent||!apuPresent){
+        // Enemy-only or friendly-only hex during combat → helpful guidance
+        const enemySide=usaPresent?'usa':'apu';
+        const mySide=usaPresent?'apu':'usa';
+        if(!units.some(u=>u.side===mySide&&!u.destroyed)){
+          const e=units.find(u=>!u.destroyed&&!u.faceDown);
+          if(e) this._setStatus(`${e.side.toUpperCase()} units only — move one of your ATK units into this hex, then attack.`);
+          return;
+        }
+      }
+    }
+
     // SELECT
     if(units.length){
       const selectable=isCombatPhase
@@ -3962,11 +4118,36 @@ class UI {
   _onBoardHover(hex){
     const tip=document.getElementById('hex-tip'); if(!tip)return;
     const ring=getRing(hex);
-    const units=this.eng.state?this.eng.getAt(hex):[];
+    const s=this.eng.state;
+    const units=s?this.eng.getAt(hex):[];
     const ol=ORBIT_LINES.find(o=>o.ring===ring);
-    tip.textContent=units.length
-      ?units.map(u=>`${u.side.toUpperCase()} ${u.type.short}`).join(', ')+` | Ring ${ring} (${ol?ol.label:''})`
-      :`Ring ${ring}${ol?' (speed '+ol.label+')':''} (${hex.q},${hex.r})`;
+    if(!units.length){
+      tip.textContent=`Ring ${ring}${ol?' (speed '+ol.label+')':''} (${hex.q},${hex.r})`;
+      return;
+    }
+    const parts=units.map(u=>`${u.side.toUpperCase()} ${u.type.short}`).join(', ');
+    const extras=[];
+    const isLaunchPhase=s&&['LAUNCH_A','LAUNCH_B'].includes(s.phase);
+    const isOptPhase=s&&['OPT_A','OPT_B'].includes(s.phase);
+    // OLR launcher hint
+    if(isLaunchPhase){
+      const olrUnit=units.find(u=>!u.destroyed&&u.type?.canOLR&&u.weapons&&
+        (u.weapons.missiles>0||u.weapons.mines>0||u.weapons.nukes>0)&&
+        (u.olrsFiredThisTurn||0)<3&&!u.attackedThisTurn);
+      if(olrUnit) extras.push(`🚀 Click to fire OLR (${olrUnit.olrsFiredThisTurn||0}/3 used)`);
+    }
+    // EWR scoring hint
+    units.filter(u=>u.typeId==='EWR'&&!u.destroyed&&u.hex).forEach(u=>{
+      if(this.eng._inEnemyCone(u)) extras.push(`★ +3VP/turn`);
+      else extras.push(`△ Not scoring — needs to be in enemy cone`);
+    });
+    // Supply resupply hint
+    if(isOptPhase){
+      units.filter(u=>['OWP','SHUTTLE','SS'].includes(u.typeId)&&!u.destroyed).forEach(u=>{
+        if((this.eng.getSupplyFor(u.id)||[]).length>0) extras.push('⛽ Resupply available');
+      });
+    }
+    tip.textContent=parts+` | Ring ${ring} (${ol?ol.label:'?'})`+(extras.length?' | '+extras.join(' · '):'');
   }
 
   // ═══════════════════════════════════════════════════════
@@ -4492,11 +4673,13 @@ class UI {
     // ── AI countdown mode ──────────────────────────────────────
     if(this._aiTimer&&this._aiPhase){
       const side=this._getPhaseActiveSide(this._aiPhase);
-      const col=side==='usa'?'var(--usa)':'var(--apu)';
+      const isBoth=side==='both';
+      const col=isBoth?'var(--orbit)':side==='usa'?'var(--usa)':'var(--apu)';
+      const label=isBoth?'USA + APU':side.toUpperCase();
       const pct=Math.round((this._aiCountdown/5)*100);
       bar.innerHTML=`
         <div class="ai-countdown">
-          <span style="color:${col};white-space:nowrap">🤖 ${side.toUpperCase()} AI acting in <b>${this._aiCountdown}s</b>…</span>
+          <span style="color:${col};white-space:nowrap">🤖 ${label} AI acting in <b>${this._aiCountdown}s</b>…</span>
           <div style="flex:1;height:4px;background:rgba(255,255,255,.1);border-radius:2px;overflow:hidden">
             <div style="width:${pct}%;height:100%;background:${col};transition:width 1s linear"></div>
           </div>
@@ -4632,7 +4815,12 @@ class UI {
     if(document.getElementById('demo-bar')?.classList.contains('active'))return;
     const phase=s.phase;
     const activeSide=this._getPhaseActiveSide(phase);
-    if(!activeSide||activeSide==='both')return; // COMBAT handled via button only
+    if(!activeSide)return;
+    if(activeSide==='both'){
+      // Auto-run COMBAT only when BOTH sides are AI
+      if(this._aiSides.usa&&this._aiSides.apu) this._startAICountdown(phase,'both');
+      return;
+    }
     if(this._aiSides[activeSide]) this._startAICountdown(phase,activeSide);
   }
 
@@ -4664,6 +4852,10 @@ class UI {
     switch(phase){
       case 'LAUNCH_A': case 'LAUNCH_B': ai._aiLaunch(side); break;
       case 'OPT_A':    case 'OPT_B':    ai._aiMove(side);   break;
+      case 'COMBAT':
+        if(this._aiSides.usa) ai._aiCombat('usa');
+        if(this._aiSides.apu) ai._aiCombat('apu');
+        break;
     }
     this._cancelMode();
     this._hideLaunchPanel();
@@ -4753,7 +4945,17 @@ class UI {
       html+=olrLaunchers.map(makeOLRRow).join('');
     }
     if(!earthUnits.length&&!deepUnits.length&&!olrLaunchers.length){
-      html+=`<div class="launch-empty">No launches available this phase</div>`;
+      let why;
+      if(elrUsed>=3)     why=`ELR limit reached — 3 launches used this turn`;
+      else if(elrs===0)  why=`No ELR rockets in reserve`;
+      else               why=`All reserve units already in orbit`;
+      html+=`<div class="launch-empty">${why}</div>`;
+    } else if(!earthUnits.length&&!deepUnits.length&&olrLaunchers.length&&elrUsed>=3){
+      // OLR launchers present but no reserves and ELRs exhausted
+      html=html.replace(
+        `ELR: ${elrUsed}/3`,
+        `ELR: 3/3 ✓`
+      );
     }
 
     panel.innerHTML=html;
