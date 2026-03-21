@@ -5104,8 +5104,8 @@ class Demo {
       aHK2: mk('HK',     'apu',  1, 5),
       aEWR1:mk('EWR',    'apu',  0,-4),   // in USA cone immediately
       aEWR2:mk('EWR',    'apu', -1,-3),
-      aM1:  mk('MINE',   'apu',  3,-3),
-      aM2:  mk('MINE',   'apu', -1,-4),
+      aM1:  mk('MINE',   'apu',  3,-3),   // ring-3 patrol mine
+      aM2:  mk('MINE',   'apu',  0,-5),   // co-located with USA SS+Supply (Supply can't move) — fires turn 1
       aCJS: mk('CJS',    'apu',  1, 5),
       aSUP: mk('SUPPLY', 'apu',  0, 5, {mines:2,missiles:4,nukes:0}),
     };
@@ -5158,9 +5158,11 @@ class Demo {
     const s = this.eng.state;
     if (!s) return;
 
-    if (s.gameOver) {
-      const w = s.winner === 'usa' ? '<span class="usa">USA WINS</span>' : '<span class="apu">APU WINS</span>';
-      this._annotate(`${w} — <b>${s.vp.usa}VP</b> vs <b>${s.vp.apu}VP</b> after ${s.turn} turns. Returning to menu…`, 'GAME OVER');
+    if (s.gameOver || s.turn > 60) {
+      const winner = s.winner || (s.vp.usa >= s.vp.apu ? 'usa' : 'apu');
+      const w = winner === 'usa' ? '<span class="usa">USA WINS</span>' : '<span class="apu">APU WINS</span>';
+      const how = s.gameOver ? `200VP gap reached` : `turn limit — VP decision`;
+      this._annotate(`${w} — <b>${s.vp.usa}VP</b> vs <b>${s.vp.apu}VP</b> (${how}). Returning to menu…`, 'GAME OVER');
       this._timer = setTimeout(()=>this._exit(), this._delay(5000));
       return;
     }
@@ -5249,22 +5251,30 @@ class Demo {
         if(c.length) eng.bringInDeepSpace(u.id,c[0]);
       });
 
-    // OLR launches — fire missiles at enemy hexes or toward enemy territory
+    // OLR launches — fire at enemies, then ring-1 area denial, with occasional nuke
     eng.resetOLRCounters(side);
     const enemies = eng.state.units.filter(u=>u.side!==side&&!u.destroyed&&u.hex);
     eng.getOLRLaunchers(side).forEach(launcher=>{
       let fired=0;
-      while(fired<3 && launcher.weapons.missiles>0){
+      while(fired<3){
         const inRange=hexesInRange(launcher.hex,3).filter(h=>{
           const r=getRing(h); return r>=1&&r<=10&&(h.q!==launcher.hex.q||h.r!==launcher.hex.r);
         });
-        // Prefer hexes that already have enemies
+        // Priority 1: hexes currently occupied by enemies (fire before they can move)
         const hot=inRange.filter(h=>eng.getAt(h).some(u=>u.side!==side&&!u.destroyed));
-        const dest = hot.length   ? hot[Math.floor(Math.random()*hot.length)]
+        // Priority 2: ring-1 hexes — enemies retreating there can't escape
+        const ring1=inRange.filter(h=>getRing(h)===1);
+        const dest = hot.length    ? hot[Math.floor(Math.random()*hot.length)]
+                   : ring1.length  ? ring1[Math.floor(Math.random()*ring1.length)]
                    : enemies.length ? this._closest(launcher.hex, inRange)
                    : null;
         if(!dest) break;
-        const r=eng.fireOLR(launcher.id,'MISSILE',dest);
+        // Occasionally fire a nuke (first shot, 25% chance) for drama
+        const useNuke = fired===0 && launcher.weapons.nukes>0 && Math.random()<0.25;
+        const payload  = useNuke ? 'NUKE' : 'MISSILE';
+        if(useNuke && !launcher.weapons.nukes) break;
+        if(!useNuke && !launcher.weapons.missiles) break;
+        const r=eng.fireOLR(launcher.id, payload, dest);
         if(r.ok) fired++; else break;
       }
     });
