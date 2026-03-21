@@ -50,15 +50,26 @@ body{background:var(--bg);color:var(--text);font-family:var(--ui);font-size:13px
 /* ─── GAME SCREEN LAYOUT ─────────────────────────────── */
 #scr-game{flex-direction:column}
 .top-bar{height:50px;background:var(--bg2);border-bottom:1px solid var(--border);
-  display:flex;align-items:center;padding:0 14px;gap:18px;flex-shrink:0;z-index:10}
-.logo{font-family:var(--title);font-size:13px;font-weight:700;letter-spacing:3px;color:var(--orbit)}
+  display:flex;align-items:center;padding:0 14px;gap:10px;flex-shrink:0;z-index:10;overflow:hidden}
+.logo{font-family:var(--title);font-size:13px;font-weight:700;letter-spacing:3px;color:var(--orbit);white-space:nowrap;flex-shrink:0}
 .tdiv{width:1px;height:28px;background:var(--border)}
-.turn-n{font-family:var(--mono);font-size:16px;color:var(--orbit)}
+.turn-n{font-family:var(--mono);font-size:16px;color:var(--orbit);white-space:nowrap;flex-shrink:0}
 .phase-n{font-family:var(--title);font-size:10px;letter-spacing:2px;color:var(--accent);flex:1;text-align:center}
 .aplayer{font-family:var(--mono);font-size:12px;padding:2px 10px;border-radius:2px}
 .aplayer.usa{background:rgba(232,64,64,.2);color:var(--usa);border:1px solid var(--usa)}
 .aplayer.apu{background:rgba(64,144,232,.2);color:var(--apu);border:1px solid var(--apu)}
-.vp-d{display:flex;gap:14px;font-family:var(--mono);font-size:12px}
+.ai-toggle{font-family:var(--mono);font-size:10px;padding:2px 8px;border-radius:2px;
+  cursor:pointer;border:1px solid;transition:all .2s;letter-spacing:1px}
+.ai-toggle.usa{background:rgba(232,64,64,.08);color:rgba(232,64,64,.55);border-color:rgba(232,64,64,.2)}
+.ai-toggle.usa:hover{background:rgba(232,64,64,.2);color:var(--usa);border-color:rgba(232,64,64,.5)}
+.ai-toggle.usa.on{background:rgba(232,64,64,.28);color:var(--usa);border-color:var(--usa);
+  box-shadow:0 0 8px rgba(232,64,64,.35)}
+.ai-toggle.apu{background:rgba(64,144,232,.08);color:rgba(64,144,232,.55);border-color:rgba(64,144,232,.2)}
+.ai-toggle.apu:hover{background:rgba(64,144,232,.2);color:var(--apu);border-color:rgba(64,144,232,.5)}
+.ai-toggle.apu.on{background:rgba(64,144,232,.28);color:var(--apu);border-color:var(--apu);
+  box-shadow:0 0 8px rgba(64,144,232,.35)}
+.ai-countdown{font-family:var(--mono);font-size:11px;display:flex;align-items:center;gap:8px;width:100%}
+.vp-d{display:flex;gap:8px;font-family:var(--mono);font-size:12px;white-space:nowrap;flex-shrink:0}
 #vp-u{color:var(--usa)} #vp-a{color:var(--apu)}
 
 .game-body{flex:1;display:flex;overflow:hidden}
@@ -98,9 +109,11 @@ body{background:var(--bg);color:var(--text);font-family:var(--ui);font-size:13px
 .log-e{color:var(--dim);padding:1px 0;border-bottom:1px solid rgba(255,255,255,.03);line-height:1.4}
 
 .bot-bar{height:36px;background:var(--bg2);border-top:1px solid var(--border);
-  display:flex;align-items:center;padding:0 14px;gap:14px;flex-shrink:0}
-#status-bar{flex:1;font-family:var(--mono);font-size:11px;color:var(--accent)}
-#hex-tip{font-family:var(--mono);font-size:10px;color:var(--dim)}
+  display:flex;align-items:center;padding:0 14px;gap:14px;flex-shrink:0;overflow:hidden}
+#status-bar{flex:1;font-family:var(--mono);font-size:11px;color:var(--accent);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+#hex-tip{font-family:var(--mono);font-size:10px;color:var(--dim);
+  white-space:nowrap;flex-shrink:0}
 
 /* ─── BUTTONS ─────────────────────────────────────────── */
 .btn-p{background:var(--accent);color:#000;border:none;padding:9px 22px;
@@ -191,13 +204,15 @@ body{background:var(--bg);color:var(--text);font-family:var(--ui);font-size:13px
 .pt-step.done::after{content:'';position:absolute;right:-5px;top:50%;transform:translateY(-50%);
   width:0;height:0;border-top:4px solid transparent;border-bottom:4px solid transparent;
   border-left:5px solid rgba(0,255,170,.25);z-index:1}
-.pt-desc{padding:6px 14px;border-top:1px solid rgba(0,255,170,.15);
-  display:flex;align-items:baseline;gap:10px;min-height:28px}
+.pt-desc{padding:5px 14px;border-top:1px solid rgba(0,255,170,.15);
+  display:flex;align-items:flex-start;gap:10px;overflow:hidden;min-height:calc(10px*1.4*2 + 10px)}
 .pt-desc-phase{font-family:var(--title);font-size:10px;letter-spacing:2px;color:var(--accent);
-  white-space:nowrap;flex-shrink:0}
-.pt-desc-text{font-family:var(--mono);font-size:10px;color:var(--text);line-height:1.4}
+  white-space:nowrap;flex-shrink:0;padding-top:1px}
+.pt-desc-text{font-family:var(--mono);font-size:10px;color:var(--text);line-height:1.4;
+  overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;
+  min-width:0;flex:1}
 .pt-desc-player{font-family:var(--mono);font-size:10px;padding:1px 8px;border-radius:2px;
-  flex-shrink:0;margin-left:auto}
+  flex-shrink:0;margin-left:auto;margin-top:1px}
 .pt-desc-player.usa{background:rgba(232,64,64,.2);color:var(--usa);border:1px solid rgba(232,64,64,.4)}
 .pt-desc-player.apu{background:rgba(64,144,232,.2);color:var(--apu);border:1px solid rgba(64,144,232,.4)}
 .pt-desc-player.both{background:rgba(200,200,200,.1);color:var(--text);border:1px solid var(--border)}
@@ -342,15 +357,16 @@ body{background:var(--bg);color:var(--text);font-family:var(--ui);font-size:13px
 #toast{position:fixed;bottom:60px;left:50%;transform:translateX(-50%) translateY(20px);
   background:var(--bg2);border:1px solid var(--accent);color:var(--accent);
   font-family:var(--mono);font-size:12px;padding:7px 18px;opacity:0;
-  transition:all .2s;pointer-events:none;z-index:300;text-align:center}
+  transition:all .2s;pointer-events:none;z-index:300;text-align:center;
+  max-width:calc(100vw - 40px);box-sizing:border-box}
 #toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
 #toast.scoring{
   border-color:var(--gold);color:var(--gold);
-  padding:10px 22px;font-size:11px;min-width:260px;
+  padding:10px 22px;font-size:11px;min-width:min(260px, calc(100vw - 40px));
 }
 #toast.atmo{
   border-color:#e87030;color:#ffaa60;
-  padding:10px 22px;font-size:11px;min-width:220px;
+  padding:10px 22px;font-size:11px;min-width:min(220px, calc(100vw - 40px));
 }
 ::-webkit-scrollbar{width:4px}
 ::-webkit-scrollbar-track{background:var(--bg)}
@@ -384,9 +400,9 @@ body{background:var(--bg);color:var(--text);font-family:var(--ui);font-size:13px
   background:var(--bg2);
   border:1px solid rgba(0,255,170,.55);
   border-top:3px solid var(--accent);
-  max-width:360px;min-width:280px;
+  max-width:min(360px, calc(100vw - 20px));min-width:min(280px, calc(100vw - 20px));
   box-shadow:0 10px 40px rgba(0,0,0,.7);
-  z-index:502;pointer-events:all;
+  z-index:502;pointer-events:all;overflow:hidden;
 }
 .sptut-hd{
   padding:12px 16px 8px;
@@ -575,7 +591,10 @@ body{background:var(--bg);color:var(--text);font-family:var(--ui);font-size:13px
     <div class="tdiv"></div>
     <div class="vp-d"><span id="vp-u">USA: 0 VP</span><span id="vp-a">APU: 0 VP</span></div>
     <div class="tdiv"></div>
-    <div id="vp-gap" style="font-family:var(--mono);font-size:11px;min-width:130px">—</div>
+    <div id="vp-gap" style="font-family:var(--mono);font-size:11px;white-space:nowrap;flex-shrink:1;min-width:0">—</div>
+    <div class="tdiv"></div>
+    <button class="ai-toggle usa" id="ai-usa-btn" title="Toggle USA AI player">👤 USA</button>
+    <button class="ai-toggle apu" id="ai-apu-btn" title="Toggle APU AI player">👤 APU</button>
     <div class="tdiv"></div>
     <button class="btn-sm" id="btn-save-game">Save</button>
     <button class="btn-sm" id="btn-exit-game" style="color:var(--dim)">✕ Exit</button>
@@ -600,15 +619,15 @@ body{background:var(--bg);color:var(--text);font-family:var(--ui);font-size:13px
       <div class="launch-target-hint" id="launch-hint"></div>
     </div>
     <div class="sidebar">
+      <div class="s-sec">
+        <div class="s-title">Actions</div>
+        <div id="action-bar"></div>
+      </div>
       <div id="unit-panel"></div>
       <div id="launch-panel" class="launch-panel" style="display:none"></div>
       <div id="legend-panel">
         <button class="legend-toggle" id="legend-toggle">📋 Unit Key &amp; Acronyms <span class="lt-arrow">▼</span></button>
         <div class="legend-body" id="legend-body"></div>
-      </div>
-      <div class="s-sec">
-        <div class="s-title">Actions</div>
-        <div id="action-bar"></div>
       </div>
       <div class="s-sec" style="flex:1;display:flex;flex-direction:column;overflow:hidden">
         <div class="s-title">Game Log</div>
@@ -3195,6 +3214,11 @@ class UI {
     this.autoAdvancing=false;
     this._moveHistory=[];   // [{uid, fromHex}] — stack of undoable moves for current OPT phase
     this._launchHistory=[]; // [{type,unitId,elrId?}|{type,payloadId,launcherId,payloadType}] — stack for LAUNCH phases
+    this._aiSides={usa:false,apu:false}; // which sides are AI-controlled
+    this._aiTimer=null;    // setInterval ID for countdown
+    this._aiCountdown=0;   // remaining seconds
+    this._aiPhase=null;    // phase currently being counted down
+    this._aiInstance=null; // AIPlayer instance (lazy)
     this.eng.on(s=>this._onState(s));
   }
 
@@ -3205,6 +3229,7 @@ class UI {
     if(!s||!s.setup.complete||s.gameOver||this.autoAdvancing)return;
     const PASSIVE=['TURN_TRACK','ORB_MOVE','MINE_CBT','SCORING'];
     if(!PASSIVE.includes(s.phase))return;
+    this._cancelAICountdown(false); // passive phases clear any leftover AI countdown
     this.autoAdvancing=true;
     // ORB_MOVE gets a longer pause so players can see the sweep before moving on
     const delay=s.phase==='ORB_MOVE'?950:s.phase==='MINE_CBT'?750:350;
@@ -3249,6 +3274,8 @@ class UI {
     // Tutorial bar buttons
     document.getElementById('tut-btn-next')?.addEventListener('click',()=>this._advanceTutorial());
     document.getElementById('tut-btn-exit')?.addEventListener('click',()=>this._endTutorial());
+
+    this._initAIToggles();
   }
 
   _show(id) {
@@ -4321,7 +4348,10 @@ class UI {
     this._updateLog();
     this._updateActionBar();
     this._updatePhaseStatus();
+    this._updateAIToggles();
     if (this.eng.state?.gameOver) this._gameOver();
+    // Start AI countdown if needed (but only if no countdown already running)
+    if(!this._aiTimer) this._checkAIPhase();
   }
 
   _onState() {
@@ -4458,9 +4488,36 @@ class UI {
   _updateActionBar(){
     const s=this.eng.state; if(!s||!s.setup.complete)return;
     const bar=document.getElementById('action-bar'); if(!bar)return;
+
+    // ── AI countdown mode ──────────────────────────────────────
+    if(this._aiTimer&&this._aiPhase){
+      const side=this._getPhaseActiveSide(this._aiPhase);
+      const col=side==='usa'?'var(--usa)':'var(--apu)';
+      const pct=Math.round((this._aiCountdown/5)*100);
+      bar.innerHTML=`
+        <div class="ai-countdown">
+          <span style="color:${col};white-space:nowrap">🤖 ${side.toUpperCase()} AI acting in <b>${this._aiCountdown}s</b>…</span>
+          <div style="flex:1;height:4px;background:rgba(255,255,255,.1);border-radius:2px;overflow:hidden">
+            <div style="width:${pct}%;height:100%;background:${col};transition:width 1s linear"></div>
+          </div>
+          <button class="btn-a" id="btn-take-control" style="color:var(--gold);border-color:var(--gold)">✋ Take Control</button>
+        </div>`;
+      document.getElementById('btn-take-control')?.addEventListener('click',()=>{
+        this._cancelAICountdown(true);
+        this._toast('You have control — AI cancelled for this phase.');
+      });
+      return;
+    }
+
     const isLaunchPhase=['LAUNCH_A','LAUNCH_B'].includes(s.phase);
     const isMovePhase=['OPT_A','OPT_B'].includes(s.phase);
     let html=`<button class="btn-a" id="btn-next-phase">Next Phase →</button>`;
+
+    // ── COMBAT: show "Run AI Attacks" button if either side is AI ─
+    if(s.phase==='COMBAT'&&(this._aiSides.usa||this._aiSides.apu)){
+      const aiLabel=[...(this._aiSides.usa?['USA']:[]),...(this._aiSides.apu?['APU']:[])].join('+');
+      html+=`<button class="btn-a" id="btn-ai-combat" style="color:var(--orbit);border-color:var(--orbit)">🤖 ${aiLabel} Attacks</button>`;
+    }
     if(this.mode==='move')   html+=`<button class="btn-a on" id="btn-cancel-mode">✕ Cancel Move</button>`;
     if(this.mode==='attack') html+=`<button class="btn-a on" id="btn-cancel-mode">✕ Cancel Attack</button>`;
     if(this.mode==='launch') html+=`<button class="btn-a on" id="btn-cancel-mode">✕ Cancel Launch</button>`;
@@ -4471,6 +4528,7 @@ class UI {
       html+=`<button class="btn-a" id="btn-undo-launch" style="color:var(--gold);border-color:var(--gold)">⟲ Undo Launch</button>`;
     bar.innerHTML=html;
     document.getElementById('btn-next-phase')?.addEventListener('click',()=>{
+      this._cancelAICountdown(false); // human manually advanced — cancel any pending AI
       this._cancelMode();
       this._hideLaunchPanel();
       this._moveHistory=[];   // clear undo history on phase advance
@@ -4510,12 +4568,109 @@ class UI {
       this.ren.render(); this._updateUI();
     });
 
+    // "Run AI Attacks" for COMBAT when one or both sides are AI
+    document.getElementById('btn-ai-combat')?.addEventListener('click',()=>{
+      if(!this._aiInstance) this._aiInstance=new AIPlayer(this.eng);
+      this.eng.state.units.forEach(u=>u.attackedThisTurn=false);
+      if(this._aiSides.usa) this._aiInstance._aiCombat('usa');
+      if(this._aiSides.apu) this._aiInstance._aiCombat('apu');
+      this._toast('AI combat executed. Click Next Phase → when done.');
+      this.ren.render(); this._updateUI();
+    });
+
     // Show/hide launch panel based on phase
     if(isLaunchPhase && s.activePlayer){
       this._showLaunchPanel(s.activePlayer);
     } else {
       this._hideLaunchPanel();
     }
+  }
+
+  // ═══════════════════════════════════════════════════════
+  // AI PLAYER TOGGLE
+  // ═══════════════════════════════════════════════════════
+  _initAIToggles(){
+    ['usa','apu'].forEach(side=>{
+      document.getElementById(`ai-${side}-btn`)?.addEventListener('click',()=>{
+        this._aiSides[side]=!this._aiSides[side];
+        this._updateAIToggles();
+        // If countdown running for this side and we just turned AI off → cancel
+        if(!this._aiSides[side]&&this._aiTimer){
+          this._cancelAICountdown(true);
+          this._toast(`${side.toUpperCase()} AI disabled — you have control.`);
+        }
+        // If turned on and we're in a matching phase → start countdown
+        if(this._aiSides[side]&&!this._aiTimer) this._checkAIPhase();
+      });
+    });
+  }
+
+  _updateAIToggles(){
+    ['usa','apu'].forEach(side=>{
+      const btn=document.getElementById(`ai-${side}-btn`);
+      if(!btn)return;
+      const on=this._aiSides[side];
+      btn.classList.toggle('on',on);
+      btn.textContent=(on?'🤖 ':'👤 ')+side.toUpperCase();
+      btn.title=on?`${side.toUpperCase()} is AI-controlled (click to take control)`:`${side.toUpperCase()} is human (click to enable AI)`;
+    });
+  }
+
+  // Returns which side is active for this phase, or 'both' for COMBAT, or null for passive
+  _getPhaseActiveSide(phase){
+    const s=this.eng.state; if(!s)return null;
+    if(phase==='LAUNCH_A'||phase==='OPT_A') return s.playerA;
+    if(phase==='LAUNCH_B'||phase==='OPT_B') return s.playerB;
+    if(phase==='COMBAT') return 'both';
+    return null;
+  }
+
+  _checkAIPhase(){
+    const s=this.eng.state;
+    if(!s||!s.setup.complete||s.gameOver||this._aiTimer||this.autoAdvancing)return;
+    // Don't trigger AI countdown during Demo autoplay mode
+    if(document.getElementById('demo-bar')?.classList.contains('active'))return;
+    const phase=s.phase;
+    const activeSide=this._getPhaseActiveSide(phase);
+    if(!activeSide||activeSide==='both')return; // COMBAT handled via button only
+    if(this._aiSides[activeSide]) this._startAICountdown(phase,activeSide);
+  }
+
+  _startAICountdown(phase,side,secs=5){
+    this._aiPhase=phase;
+    this._aiCountdown=secs;
+    this._updateActionBar();
+    this._aiTimer=setInterval(()=>{
+      this._aiCountdown--;
+      if(this._aiCountdown<=0){
+        this._cancelAICountdown(false);
+        this._executeAI(phase,side);
+      } else {
+        this._updateActionBar();
+      }
+    },1000);
+  }
+
+  _cancelAICountdown(rerender=true){
+    if(this._aiTimer){clearInterval(this._aiTimer);this._aiTimer=null;}
+    this._aiPhase=null;
+    this._aiCountdown=0;
+    if(rerender) this._updateActionBar();
+  }
+
+  _executeAI(phase,side){
+    if(!this._aiInstance) this._aiInstance=new AIPlayer(this.eng);
+    const ai=this._aiInstance;
+    switch(phase){
+      case 'LAUNCH_A': case 'LAUNCH_B': ai._aiLaunch(side); break;
+      case 'OPT_A':    case 'OPT_B':    ai._aiMove(side);   break;
+    }
+    this._cancelMode();
+    this._hideLaunchPanel();
+    this._moveHistory=[];
+    this._launchHistory=[];
+    this.eng.advancePhase();
+    this._maybeAutoAdvance();
   }
 
   _cancelMode(){
@@ -4782,7 +4937,7 @@ class UI {
         const ctx=cv.getContext('2d');
         const s=SZ/2-1, cx=SZ/2, cy=SZ/2;
         ctx.fillStyle='#c02020'; ctx.strokeStyle='#ff8080'; ctx.lineWidth=1;
-        ctx.beginPath(); ctx.roundRect(cx-s,cy-s,s*2,s*2,2); ctx.fill(); ctx.stroke();
+        this.ren._tokenPath(ctx,u.id,{x:cx,y:cy},s); ctx.fill(); ctx.stroke();
         ctx.fillStyle='#fff'; ctx.strokeStyle='#fff';
         this.ren._icon(ctx,{typeId:u.id},{x:cx,y:cy},s*.9);
       });
@@ -4797,6 +4952,7 @@ class UI {
     document.getElementById('tut-bar')?.classList.remove('active');
     document.getElementById('sptut-ov')?.classList.remove('active');
     this.ren.tutHL = new Set();
+    this._cancelAICountdown(false);
     this._cancelMode();
     this._show('scr-welcome');
   }
@@ -5211,6 +5367,113 @@ class SpotlightTutorial {
 }
 
 // ═══════════════════════════════════════════════════════════════
+// AI PLAYER — shared AI logic used by both Demo and the in-game
+//             AI toggle feature. Pass an Engine instance.
+// ═══════════════════════════════════════════════════════════════
+class AIPlayer {
+  constructor(eng){ this.eng=eng; }
+
+  _aiLaunch(side){
+    const eng=this.eng;
+    const priority={HK:0,OWP:1,SHUTTLE:2,EWR:3,COM:4,CJS:5,SF:6};
+    const queue=eng.getEarthUnits(side)
+      .filter(u=>u.typeId!=='ELR'&&!u.launched)
+      .sort((a,b)=>(priority[a.typeId]??9)-(priority[b.typeId]??9));
+    let used=eng._elrLaunchesThisTurn(side);
+    const avail=eng.getELRsAvailable(side);
+    for(const u of queue){
+      if(used>=3||used>=avail)break;
+      const ring=Math.min(3,1+(used%3));
+      const cands=hexRing({q:0,r:0},ring).filter(h=>eng.getAt(h).length===0);
+      if(!cands.length)continue;
+      const r=eng.launchFromEarth(u.id,cands[Math.floor(Math.random()*cands.length)]);
+      if(r.ok)used++;
+    }
+    eng.getDeepSpaceUnits(side).filter(u=>!u.launched).slice(0,1).forEach(u=>{
+      const c=hexRing({q:0,r:0},10).filter(h=>eng.getAt(h).length===0);
+      if(c.length)eng.bringInDeepSpace(u.id,c[0]);
+    });
+    eng.resetOLRCounters(side);
+    const enemies=eng.state.units.filter(u=>u.side!==side&&!u.destroyed&&u.hex);
+    eng.getOLRLaunchers(side).forEach(launcher=>{
+      let fired=0;
+      while(fired<3){
+        const inRange=hexesInRange(launcher.hex,3).filter(h=>{
+          const r=getRing(h);return r>=1&&r<=10&&(h.q!==launcher.hex.q||h.r!==launcher.hex.r);
+        });
+        const hot=inRange.filter(h=>eng.getAt(h).some(u=>u.side!==side&&!u.destroyed));
+        const ring1=inRange.filter(h=>getRing(h)===1);
+        const dest=hot.length?hot[Math.floor(Math.random()*hot.length)]
+          :ring1.length?ring1[Math.floor(Math.random()*ring1.length)]
+          :enemies.length?this._closest(launcher.hex,inRange):null;
+        if(!dest)break;
+        const useNuke=fired===0&&launcher.weapons?.nukes>0&&Math.random()<0.25;
+        const payload=useNuke?'NUKE':'MISSILE';
+        if(useNuke&&!launcher.weapons.nukes)break;
+        if(!useNuke&&!launcher.weapons?.missiles)break;
+        const r=eng.fireOLR(launcher.id,payload,dest);
+        if(r.ok)fired++;else break;
+      }
+    });
+  }
+
+  _aiMove(side){
+    const eng=this.eng;
+    eng.state.units
+      .filter(u=>u.side===side&&!u.destroyed&&u.hex&&!u.moved&&!u.launched&&u.typeId!=='MINE')
+      .forEach(u=>{
+        const ring=getRing(u.hex);
+        const valid=[];
+        hexesInRange(u.hex,u.type.mov+1).forEach(h=>{
+          if(h.q===u.hex.q&&h.r===u.hex.r)return;
+          const d=hexDist(u.hex,h),tr=getRing(h),g=tr<ring?1:0;
+          if(d<=u.type.mov+g&&tr>=1&&tr<=10)valid.push(h);
+        });
+        if(!valid.length)return;
+        const enemies=eng.state.units.filter(e=>e.side!==side&&!e.destroyed&&e.hex);
+        let dest=null;
+        if(u.typeId==='HK'&&enemies.length){
+          const val={SS:100,OWP:40,HK:30,EWR:20,CJS:15,SHUTTLE:10,COM:5};
+          const target=enemies.slice().sort((a,b)=>(val[b.typeId]||0)-(val[a.typeId]||0))[0];
+          dest=this._closest(target.hex,valid);
+        } else if(u.typeId==='EWR'){
+          const cone=valid.filter(h=>eng._inCone(h,side==='usa'?'apu':'usa'));
+          dest=cone.length?cone[Math.floor(Math.random()*cone.length)]:null;
+        } else if((u.typeId==='COM'||u.typeId==='CJS')&&valid.length){
+          const friendly=valid.filter(h=>eng._inCone(h,side));
+          dest=friendly.length?friendly[0]:null;
+        } else if(u.typeId==='OWP'){
+          const inner=valid.filter(h=>getRing(h)<ring);
+          dest=inner.length?inner[0]:null;
+        }
+        if(dest)eng.moveUnit(u.id,dest);
+      });
+  }
+
+  _aiCombat(side){
+    const eng=this.eng;
+    eng.state.units
+      .filter(u=>u.side===side&&!u.destroyed&&u.hex&&u.type.atk>0&&!u.attackedThisTurn)
+      .filter(u=>!(u.typeId==='OWP'&&(u.olrsFiredThisTurn||0)>0))
+      .forEach(atk=>{
+        const targets=eng.state.units.filter(e=>
+          !e.destroyed&&e.hex&&e.side!==side&&
+          e.hex.q===atk.hex.q&&e.hex.r===atk.hex.r&&e.typeId!=='MINE'
+        );
+        if(!targets.length)return;
+        const pri={SS:0,OWP:1,HK:2,CJS:3,EWR:4,COM:5,SHUTTLE:6,SUPPLY:7};
+        targets.sort((a,b)=>(pri[a.typeId]??9)-(pri[b.typeId]??9));
+        eng.combat(atk.id,targets[0].id);
+      });
+  }
+
+  _closest(from,candidates){
+    if(!candidates.length)return null;
+    return candidates.slice().sort((a,b)=>hexDist(from,a)-hexDist(from,b))[0];
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
 // DEMO — autonomous two-player autoplay for the welcome screen
 // ═══════════════════════════════════════════════════════════════
 class Demo {
@@ -5221,6 +5484,7 @@ class Demo {
     this._timer  = null;
     this._fast   = false;
     this._active = false;
+    this._ai     = null;     // AIPlayer instance (lazy)
     this._leadChanges = 0;   // cumulative lead changes this game
     this._prevLeader  = null; // 'usa' | 'apu' | null
     this._leadJustChanged = false;
@@ -5419,135 +5683,20 @@ class Demo {
     }
   }
 
-  // ── Action AI ────────────────────────────────────────────────
+  // ── Action AI (delegates to shared AIPlayer class) ───────────
   _doAction(phase){
+    if(!this._ai) this._ai=new AIPlayer(this.eng);
     const eng  = this.eng;
     const side = eng.state.activePlayer;
     switch(phase){
-      case 'LAUNCH_A': case 'LAUNCH_B': this._aiLaunch(side); break;
-      case 'OPT_A':    case 'OPT_B':    this._aiMove(side);   break;
+      case 'LAUNCH_A': case 'LAUNCH_B': this._ai._aiLaunch(side); break;
+      case 'OPT_A':    case 'OPT_B':    this._ai._aiMove(side);   break;
       case 'COMBAT':
         eng.state.units.forEach(u=>u.attackedThisTurn=false);
-        this._aiCombat('usa');
-        this._aiCombat('apu');
+        this._ai._aiCombat('usa');
+        this._ai._aiCombat('apu');
         break;
     }
-  }
-
-  _aiLaunch(side){
-    const eng = this.eng;
-    // ELR launches — HKs first, then OWPs, then EWRs, then COMs
-    const priority = {HK:0, OWP:1, SHUTTLE:2, EWR:3, COM:4, CJS:5, SF:6};
-    const queue = eng.getEarthUnits(side)
-      .filter(u=>u.typeId!=='ELR'&&!u.launched)
-      .sort((a,b)=>(priority[a.typeId]??9)-(priority[b.typeId]??9));
-
-    let used = eng._elrLaunchesThisTurn(side);
-    const avail = eng.getELRsAvailable(side);
-    for (const u of queue) {
-      if (used >= 3 || used >= avail) break;
-      const ring = Math.min(3, 1 + (used % 3));
-      const cands = hexRing({q:0,r:0},ring).filter(h=>eng.getAt(h).length===0);
-      if (!cands.length) continue;
-      const r = eng.launchFromEarth(u.id, cands[Math.floor(Math.random()*cands.length)]);
-      if (r.ok) used++;
-    }
-
-    // Deep space reinforcements
-    eng.getDeepSpaceUnits(side)
-      .filter(u=>!u.launched)
-      .slice(0,1)
-      .forEach(u=>{
-        const c=hexRing({q:0,r:0},10).filter(h=>eng.getAt(h).length===0);
-        if(c.length) eng.bringInDeepSpace(u.id,c[0]);
-      });
-
-    // OLR launches — fire at enemies, then ring-1 area denial, with occasional nuke
-    eng.resetOLRCounters(side);
-    const enemies = eng.state.units.filter(u=>u.side!==side&&!u.destroyed&&u.hex);
-    eng.getOLRLaunchers(side).forEach(launcher=>{
-      let fired=0;
-      while(fired<3){
-        const inRange=hexesInRange(launcher.hex,3).filter(h=>{
-          const r=getRing(h); return r>=1&&r<=10&&(h.q!==launcher.hex.q||h.r!==launcher.hex.r);
-        });
-        // Priority 1: hexes currently occupied by enemies (fire before they can move)
-        const hot=inRange.filter(h=>eng.getAt(h).some(u=>u.side!==side&&!u.destroyed));
-        // Priority 2: ring-1 hexes — enemies retreating there can't escape
-        const ring1=inRange.filter(h=>getRing(h)===1);
-        const dest = hot.length    ? hot[Math.floor(Math.random()*hot.length)]
-                   : ring1.length  ? ring1[Math.floor(Math.random()*ring1.length)]
-                   : enemies.length ? this._closest(launcher.hex, inRange)
-                   : null;
-        if(!dest) break;
-        // Occasionally fire a nuke (first shot, 25% chance) for drama
-        const useNuke = fired===0 && launcher.weapons.nukes>0 && Math.random()<0.25;
-        const payload  = useNuke ? 'NUKE' : 'MISSILE';
-        if(useNuke && !launcher.weapons.nukes) break;
-        if(!useNuke && !launcher.weapons.missiles) break;
-        const r=eng.fireOLR(launcher.id, payload, dest);
-        if(r.ok) fired++; else break;
-      }
-    });
-  }
-
-  _aiMove(side){
-    const eng=this.eng;
-    eng.state.units
-      .filter(u=>u.side===side&&!u.destroyed&&u.hex&&!u.moved&&!u.launched&&u.typeId!=='MINE')
-      .forEach(u=>{
-        const ring=getRing(u.hex);
-        const valid=[];
-        hexesInRange(u.hex,u.type.mov+1).forEach(h=>{
-          if(h.q===u.hex.q&&h.r===u.hex.r) return;
-          const d=hexDist(u.hex,h),tr=getRing(h),g=tr<ring?1:0;
-          if(d<=u.type.mov+g&&tr>=1&&tr<=10) valid.push(h);
-        });
-        if(!valid.length) return;
-
-        const enemies=eng.state.units.filter(e=>e.side!==side&&!e.destroyed&&e.hex);
-        let dest=null;
-
-        if(u.typeId==='HK'&&enemies.length){
-          // Move toward highest-value enemy
-          const val={SS:100,OWP:40,HK:30,EWR:20,CJS:15,SHUTTLE:10,COM:5};
-          const target=enemies.slice().sort((a,b)=>(val[b.typeId]||0)-(val[a.typeId]||0))[0];
-          dest=this._closest(target.hex, valid);
-        } else if(u.typeId==='EWR'){
-          const cone=valid.filter(h=>eng._inCone(h,side==='usa'?'apu':'usa'));
-          dest=cone.length?cone[Math.floor(Math.random()*cone.length)]:null;
-        } else if((u.typeId==='COM'||u.typeId==='CJS')&&valid.length){
-          const friendly=valid.filter(h=>eng._inCone(h,side));
-          dest=friendly.length?friendly[0]:null;
-        } else if(u.typeId==='OWP'){
-          // Drift inward slightly
-          const inner=valid.filter(h=>getRing(h)<ring);
-          dest=inner.length?inner[0]:null;
-        }
-        if(dest) eng.moveUnit(u.id,dest);
-      });
-  }
-
-  _aiCombat(side){
-    const eng=this.eng;
-    eng.state.units
-      .filter(u=>u.side===side&&!u.destroyed&&u.hex&&u.type.atk>0&&!u.attackedThisTurn)
-      .filter(u=>!(u.typeId==='OWP'&&(u.olrsFiredThisTurn||0)>0))
-      .forEach(atk=>{
-        const targets=eng.state.units.filter(e=>
-          !e.destroyed&&e.hex&&e.side!==side&&
-          e.hex.q===atk.hex.q&&e.hex.r===atk.hex.r&&e.typeId!=='MINE'
-        );
-        if(!targets.length) return;
-        const pri={SS:0,OWP:1,HK:2,CJS:3,EWR:4,COM:5,SHUTTLE:6,SUPPLY:7};
-        targets.sort((a,b)=>(pri[a.typeId]??9)-(pri[b.typeId]??9));
-        eng.combat(atk.id,targets[0].id);
-      });
-  }
-
-  _closest(from, candidates){
-    if(!candidates.length) return null;
-    return candidates.slice().sort((a,b)=>hexDist(from,a)-hexDist(from,b))[0];
   }
 
   // ── Annotations ──────────────────────────────────────────────
