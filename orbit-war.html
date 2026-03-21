@@ -3530,6 +3530,7 @@ class UI {
     this._moveHistory=[];   // [{uid, fromHex}] — stack of undoable moves for current OPT phase
     this._launchHistory=[]; // [{type,unitId,elrId?}|{type,payloadId,launcherId,payloadType}] — stack for LAUNCH phases
     this._aiSides={usa:false,apu:false}; // which sides are AI-controlled
+    this._aiExecuting=false; // true while _executeAI is running — blocks re-entrant _checkAIPhase
     this._aiTimer=null;    // setInterval ID for countdown
     this._aiCountdown=0;   // remaining seconds
     this._aiPhase=null;    // phase currently being counted down
@@ -5024,7 +5025,7 @@ class UI {
 
   _checkAIPhase(){
     const s=this.eng.state;
-    if(!s||!s.setup.complete||s.gameOver||this._aiTimer||this.autoAdvancing)return;
+    if(!s||!s.setup.complete||s.gameOver||this._aiTimer||this.autoAdvancing||this._aiExecuting)return;
     // Don't trigger AI countdown during Demo autoplay mode
     if(document.getElementById('demo-bar')?.classList.contains('active'))return;
     const phase=s.phase;
@@ -5061,15 +5062,28 @@ class UI {
   }
 
   _executeAI(phase,side){
-    if(!this._aiInstance) this._aiInstance=new AIPlayer(this.eng);
-    const ai=this._aiInstance;
-    switch(phase){
-      case 'LAUNCH_A': case 'LAUNCH_B': ai._aiLaunch(side); break;
-      case 'OPT_A':    case 'OPT_B':    ai._aiMove(side);   break;
-      case 'COMBAT':
-        if(this._aiSides.usa) ai._aiCombat('usa');
-        if(this._aiSides.apu) ai._aiCombat('apu');
-        break;
+    // Guard: block _checkAIPhase re-entry while AI actions fire _emit() callbacks
+    this._aiExecuting=true;
+    try{
+      if(!this._aiInstance) this._aiInstance=new AIPlayer(this.eng);
+      const ai=this._aiInstance;
+      // Verify the phase still matches — a stale countdown must not act on the wrong phase
+      if(this.eng.state?.phase!==phase){ this._aiExecuting=false; return; }
+      // Only act for the correct side; COMBAT runs both AI sides simultaneously
+      switch(phase){
+        case 'LAUNCH_A': case 'LAUNCH_B':
+          if(this._aiSides[side]) ai._aiLaunch(side);
+          break;
+        case 'OPT_A': case 'OPT_B':
+          if(this._aiSides[side]) ai._aiMove(side);
+          break;
+        case 'COMBAT':
+          if(this._aiSides.usa) ai._aiCombat('usa');
+          if(this._aiSides.apu) ai._aiCombat('apu');
+          break;
+      }
+    } finally {
+      this._aiExecuting=false;
     }
     this._cancelMode();
     this._hideLaunchPanel();
