@@ -1325,7 +1325,7 @@ class Engine {
           ringPath.push({...cur});
         }
         u.hex={...cur};
-        trails.push({from,to:{...u.hex},ringPath,side:u.side,type:u.typeId});
+        trails.push({from,to:{...u.hex},ringPath,side:u.side,type:u.typeId,id:u.id});
       }
     });
     // Store trails for renderer to draw briefly during ORB_MOVE display
@@ -1976,6 +1976,8 @@ class Renderer {
     this.zoom=1.0;  // multiplier on hs; 1.0 = default
     this.pan={x:0,y:0};
     this._ZOOM_MIN=0.35; this._ZOOM_MAX=3.5;
+    this._orbAnim=null;       // active orbital movement animation state
+    this._lastOrbTrails=null; // last orbTrails ref we started an animation for
     this._setupEvents();
     this.resize();
   }
@@ -2058,6 +2060,13 @@ class Renderer {
     if(this.eng.state)this._drawOptTrails();
     if(this.eng.state)this._drawLaunchTrails();
     if(this.hovered){this._hlHex(this.hovered,'rgba(255,255,255,.08)')}
+    // Auto-start orbital animation when new trails arrive
+    if(this.eng.state){
+      const curTrails=this.eng.state.orbTrails;
+      if(curTrails&&curTrails!==this._lastOrbTrails&&!this._orbAnim&&curTrails.length>0){
+        this.startOrbAnim(curTrails);
+      }
+    }
     if(this.eng.state)this._drawUnits();
   }
 
@@ -2449,11 +2458,66 @@ class Renderer {
   // ─────────────────────────────────────────────────────────
 
   _drawUnits(){
+    const anim=this._orbAnim;
+    if(!anim){
+      const byHex={};
+      this.eng.state.units.filter(u=>!u.destroyed&&u.hex).forEach(u=>{
+        const k=`${u.hex.q},${u.hex.r}`;(byHex[k]=byHex[k]||[]).push(u);
+      });
+      Object.values(byHex).forEach(us=>this._drawHexUnits(us));
+      return;
+    }
+    // Animated mode: units with trails slide along ringPath; others render normally
     const byHex={};
     this.eng.state.units.filter(u=>!u.destroyed&&u.hex).forEach(u=>{
-      const k=`${u.hex.q},${u.hex.r}`;(byHex[k]=byHex[k]||[]).push(u);
+      const trail=anim.byId[u.id];
+      if(trail){
+        // Interpolate pixel position along the arc
+        const px=this._interpTrailPx(trail,anim.ease);
+        this._drawUnit(u,px,this.sz*.52);
+      } else {
+        const k=`${u.hex.q},${u.hex.r}`;(byHex[k]=byHex[k]||[]).push(u);
+      }
     });
     Object.values(byHex).forEach(us=>this._drawHexUnits(us));
+  }
+
+  // Interpolate pixel position along a trail's ringPath at progress t ∈ [0,1]
+  _interpTrailPx(trail,t){
+    const path=trail.ringPath;
+    if(!path||path.length<2) return this.h2p(trail.to);
+    if(t<=0) return this.h2p(path[0]);
+    if(t>=1) return this.h2p(path[path.length-1]);
+    const segs=path.length-1, pos=t*segs, i=Math.floor(pos), frac=pos-i;
+    const a=path[Math.min(i,segs)], b=path[Math.min(i+1,segs)];
+    return this.h2p({q:a.q+(b.q-a.q)*frac, r:a.r+(b.r-a.r)*frac});
+  }
+
+  // Start a new orbital movement animation from a trails array
+  startOrbAnim(trails,dur=700){
+    if(!trails||!trails.length) return;
+    const byId={};
+    trails.forEach(tr=>{ if(tr.id!=null) byId[tr.id]=tr; });
+    if(!Object.keys(byId).length) return;
+    this._lastOrbTrails=trails;
+    this._orbAnim={byId, start:performance.now(), dur, ease:0};
+    requestAnimationFrame(ts=>this._orbAnimLoop(ts));
+  }
+
+  // rAF loop for orbital movement animation
+  _orbAnimLoop(ts){
+    if(!this._orbAnim) return;
+    const {start,dur}=this._orbAnim;
+    const t=Math.min((ts-start)/dur,1);
+    // Cubic ease-in-out
+    this._orbAnim.ease=t<0.5 ? 4*t*t*t : 1-Math.pow(-2*t+2,3)/2;
+    this.render();
+    if(t<1){
+      requestAnimationFrame(ts2=>this._orbAnimLoop(ts2));
+    } else {
+      this._orbAnim=null;
+      this.render();
+    }
   }
 
   _drawHexUnits(units){
@@ -5033,6 +5097,9 @@ class Demo {
     this._timer  = null;
     this._fast   = false;
     this._active = false;
+    this._leadChanges = 0;   // cumulative lead changes this game
+    this._prevLeader  = null; // 'usa' | 'apu' | null
+    this._leadJustChanged = false;
   }
 
   // ── Entry point ─────────────────────────────────────────────
@@ -5167,6 +5234,14 @@ class Demo {
       return;
     }
 
+    // Track lead changes for commentary
+    const ldr=s.vp.usa>s.vp.apu?'usa':s.vp.apu>s.vp.usa?'apu':null;
+    if(ldr&&this._prevLeader&&ldr!==this._prevLeader){
+      this._leadChanges++;
+      this._leadJustChanged=true;
+    } else { this._leadJustChanged=false; }
+    if(ldr) this._prevLeader=ldr;
+
     const phase = s.phase;
     this._runPhaseAction(phase);
   }
@@ -5183,16 +5258,25 @@ class Demo {
 
     if (PASSIVE.includes(phase)) {
       // Let the annotation show briefly, then advance
-      const delay = phase === 'ORB_MOVE'  ? this._delay(700)  :
-                    phase === 'MINE_CBT'  ? this._delay(2000) :
-                    phase === 'SCORING'   ? this._delay(1800) :
+      const delay = phase === 'ORB_MOVE'  ? this._delay(600)  :
+                    phase === 'MINE_CBT'  ? this._delay(700)  :
+                    phase === 'SCORING'   ? this._delay(700)  :
                                             this._delay(500);
       this._timer = setTimeout(()=>{
         if (!this._active) return;
         eng.advancePhase();
         this.ui._updateUI();
         this.ren.render();
-        this._timer = setTimeout(()=>this._tick(), this._delay(300));
+        // Post-phase recap for eventful phases (results are now in the log)
+        if (phase === 'MINE_CBT' || phase === 'SCORING') {
+          const post = this._getPostAnnotation(phase, eng.state);
+          if (post) this._annotate(post, phaseName);
+        }
+        const postDelay = phase === 'ORB_MOVE'  ? this._delay(800)  :
+                          phase === 'MINE_CBT'  ? this._delay(2000) :
+                          phase === 'SCORING'   ? this._delay(1800) :
+                                                  this._delay(300);
+        this._timer = setTimeout(()=>this._tick(), postDelay);
       }, delay);
     } else {
       // Action phase: long lead-in so players can read the board before AI acts
@@ -5203,6 +5287,9 @@ class Demo {
         eng.advancePhase();
         this.ui._updateUI();
         this.ren.render();
+        // Post-action recap (results are now in the log)
+        const post = this._getPostAnnotation(phase, eng.state);
+        if (post) this._annotate(post, phaseName+' result');
         this._timer = setTimeout(()=>this._tick(), this._delay(1800));
       }, actionDelay);
     }
@@ -5340,66 +5427,214 @@ class Demo {
   }
 
   // ── Annotations ──────────────────────────────────────────────
+  // Helper: log entries for a specific turn
+  _tlog(s, turn){ return s.log.filter(l=>l.startsWith(`T${turn}:`)); }
+
   _getAnnotation(phase, s){
     const usa=s.vp.usa, apu=s.vp.apu;
     const delta=usa-apu;
     const scoreStr=`<span class="usa">USA ${usa}VP</span> vs <span class="apu">APU ${apu}VP</span>`;
-    const lead=delta>0?`<span class="usa">USA leads +${delta}</span>`:delta<0?`<span class="apu">APU leads +${Math.abs(delta)}</span>`:`<b>Tied</b>`;
-
+    const lead=delta>0?`<span class="usa">USA leads +${delta}</span>`:delta<0?`<span class="apu">APU leads +${Math.abs(delta)}</span>`:`<b>Tied — deadlock!</b>`;
     const alive={
       usa: s.units.filter(u=>u.side==='usa'&&!u.destroyed&&u.hex).length,
       apu: s.units.filter(u=>u.side==='apu'&&!u.destroyed&&u.hex).length,
     };
-
-    // Look at recent log for interesting events
-    const recent=s.log.slice(-8);
-    const jammed  = recent.some(l=>/CJS jammed/.test(l));
-    const mineHit = recent.some(l=>/Mine vs/.test(l)&&/DE|AE|EX/.test(l));
-    const mslHit  = recent.some(l=>/Missile vs/.test(l)&&/DE|AE|EX/.test(l));
-    const nukeHit = recent.some(l=>/NUKE detonates/.test(l));
-    const kill    = recent.filter(l=>/ → (DE|AE|EX)/.test(l));
+    const t=s.turn;
 
     switch(phase){
-      case 'TURN_TRACK':
-        return `Turn ${s.turn} begins. ${scoreStr} — ${lead}. `+
-          `Fleet: <span class="usa">${alive.usa} USA</span> vs <span class="apu">${alive.apu} APU</span>.`;
-      case 'ORB_MOVE':
-        return `<b>Orbital sweep</b> — all satellites move counterclockwise. Watch the trail arrows. `+
-          `Inner rings move faster; outer rings barely creep.`;
-      case 'LAUNCH_A':
-        return `<span class="usa"><b>USA launches</b></span> — reinforcements via ELR (rings 1–3), `+
-          `OWPs fire missiles via OLR (range 3 hexes, free, unlimited rockets).`;
-      case 'LAUNCH_B':
-        return `<span class="apu"><b>APU launches</b></span> — missiles strike ahead of advancing HKs. `+
-          `Missiles auto-fire next mine combat phase.`;
-      case 'OPT_A':
-        return `<span class="usa"><b>USA moves</b></span> — HKs hunt enemies, EWRs seek the APU cone for VP, `+
-          `CJS repositions to cover the fleet.`;
-      case 'OPT_B':
-        return `<span class="apu"><b>APU moves</b></span> — OWPs drift inward, HKs intercept. `+
-          `Mines orbit silently, waiting for enemies to cross their hex.`;
-      case 'MINE_CBT': {
-        let note = `<b>Mine combat</b> — mines (ATK 6), missiles (ATK 5), and nukes fire automatically. `;
-        if(nukeHit)  note += `<b>NUKE detonated</b> — owner pays 10VP! `;
-        if(mineHit)  note += `Mine struck a target. `;
-        if(mslHit)   note += `Missile connected. `;
-        if(jammed)   note += `<span class="usa">CJS jammed a missile</span> (50% chance, d6 roll 1–3). `;
-        if(!mineHit&&!mslHit&&!jammed) note += `No hits this turn — mines will sweep into new positions next orbital phase.`;
+      case 'TURN_TRACK': {
+        // Summarise the turn that just ended (turn t-1)
+        let note='';
+        if(this._leadJustChanged){
+          note=`🔄 <b>LEAD CHANGE! ${delta>0?'USA':'APU'} takes the lead!</b> `;
+        }
+        if(t>1){
+          const prev=this._tlog(s,t-1);
+          const kills=prev.filter(l=>/ → (DE|AE|EX)/.test(l)||/Mine vs .+: (DE|AE|EX)/.test(l)||/Missile vs .+: (DE|AE|EX)/.test(l)||/Nuke vs .+: (DE|AE|EX)/.test(l));
+          const nuked=prev.filter(l=>/NUKE detonates/.test(l));
+          const atmo =prev.filter(l=>/atmosphere/.test(l));
+          let recap='';
+          if(kills.length)  recap+=`<b>${kills.length} unit${kills.length>1?'s':''} destroyed</b>`;
+          if(nuked.length)  recap+=(recap?', ':'')+'☢ nuke detonated';
+          if(atmo.length)   recap+=(recap?', ':'')+`${atmo.length} unit${atmo.length>1?'s':''} lost to atmospheric decay`;
+          if(!recap)        recap='no casualties';
+          note+=`Turn ${t} of 60. Last turn: ${recap}. `;
+        } else {
+          note+=`Turn ${t} begins — fleets are deploying! `;
+        }
+        note+=`${scoreStr} — ${lead}. `;
+        if(this._leadChanges>0) note+=`(${this._leadChanges} lead change${this._leadChanges>1?'s':''} so far.) `;
+        note+=`Fleet: <span class="usa">${alive.usa} USA</span> vs <span class="apu">${alive.apu} APU</span>.`;
         return note;
+      }
+      case 'ORB_MOVE': {
+        const ring1Units=s.units.filter(u=>!u.destroyed&&u.hex&&getRing(u.hex)===1);
+        let note=`<b>Orbital sweep</b> — all units drift counterclockwise. Inner rings are faster; watch the animated arcs. `;
+        if(ring1Units.length>0) note+=`<b>${ring1Units.length} unit(s) at ring 1</b> — atmospheric decay risk on retreat! `;
+        if(t>1&&(t)%4===0) note+=`⚠ Earth rotates this turn — scoring cones will shift! `;
+        return note;
+      }
+      case 'LAUNCH_A': {
+        const earth=s.earthUnits?.usa||[];
+        const deep=s.reinforcements?.usa||[];
+        const queue=earth.filter(u=>u.typeId!=='ELR'&&!u.launched);
+        const owps=s.units.filter(u=>u.side==='usa'&&!u.destroyed&&u.hex&&u.typeId==='OWP');
+        const missiles=owps.reduce((n,u)=>(n+(u.weapons?.missiles||0)),0);
+        let note=`<span class="usa"><b>USA launches</b></span> — `;
+        if(queue.length) note+=`${queue.length} unit${queue.length>1?'s':''} waiting on the launchpad. `;
+        if(deep.filter(u=>!u.launched).length) note+=`${deep.filter(u=>!u.launched).length} deep-space unit(s) inbound. `;
+        if(missiles>0) note+=`${owps.length} OWP${owps.length>1?'s':''} with ${missiles} missile${missiles>1?'s':''} ready to fire. `;
+        if(!queue.length&&!missiles) note+=`No forces ready this turn — hold position. `;
+        return note;
+      }
+      case 'LAUNCH_B': {
+        const earth=s.earthUnits?.apu||[];
+        const deep=s.reinforcements?.apu||[];
+        const queue=earth.filter(u=>u.typeId!=='ELR'&&!u.launched);
+        const owps=s.units.filter(u=>u.side==='apu'&&!u.destroyed&&u.hex&&u.typeId==='OWP');
+        const missiles=owps.reduce((n,u)=>(n+(u.weapons?.missiles||0)),0);
+        const nukes=owps.reduce((n,u)=>(n+(u.weapons?.nukes||0)),0);
+        let note=`<span class="apu"><b>APU launches</b></span> — `;
+        if(queue.length) note+=`${queue.length} unit${queue.length>1?'s':''} queued for ELR insertion. `;
+        if(deep.filter(u=>!u.launched).length) note+=`${deep.filter(u=>!u.launched).length} deep-space unit(s) inbound. `;
+        if(missiles>0||nukes>0) note+=`${owps.length} OWP${owps.length>1?'s':''} — ${missiles} missile${missiles!==1?'s':''}${nukes>0?` + ${nukes} nuke${nukes>1?'s':''}`:''}. `;
+        return note;
+      }
+      case 'OPT_A': {
+        const hks=s.units.filter(u=>u.side==='usa'&&!u.destroyed&&u.hex&&u.typeId==='HK');
+        const ewrs=s.units.filter(u=>u.side==='usa'&&!u.destroyed&&u.hex&&u.typeId==='EWR');
+        const inCone=ewrs.filter(u=>this.eng._inEnemyCone(u));
+        let note=`<span class="usa"><b>USA maneuvers</b></span> — `;
+        if(hks.length) note+=`${hks.length} HK${hks.length>1?'s':''} close in on APU positions. `;
+        if(inCone.length) note+=`${inCone.length} EWR${inCone.length>1?'s':''} already scoring inside APU cone. `;
+        else if(ewrs.length) note+=`EWRs seeking APU cone for 3VP/turn. `;
+        return note;
+      }
+      case 'OPT_B': {
+        const hks=s.units.filter(u=>u.side==='apu'&&!u.destroyed&&u.hex&&u.typeId==='HK');
+        const mines=s.units.filter(u=>u.side==='apu'&&!u.destroyed&&u.hex&&u.typeId==='MINE');
+        const ewrs=s.units.filter(u=>u.side==='apu'&&!u.destroyed&&u.hex&&u.typeId==='EWR');
+        const inCone=ewrs.filter(u=>this.eng._inEnemyCone(u));
+        let note=`<span class="apu"><b>APU maneuvers</b></span> — `;
+        if(hks.length) note+=`${hks.length} HK${hks.length>1?'s':''} intercept. `;
+        if(mines.length) note+=`${mines.length} mine${mines.length>1?'s':''} orbit silently, waiting. `;
+        if(inCone.length) note+=`${inCone.length} EWR${inCone.length>1?'s':''} scoring in USA cone (${inCone.length*3}VP/turn). `;
+        return note;
+      }
+      case 'MINE_CBT': {
+        // Mine combat already ran when we got here — show the results
+        const tl=this._tlog(s,t);
+        const kills=tl.filter(l=>/Mine vs .+: (DE|AE|EX)/.test(l)||/Missile vs .+: (DE|AE|EX)/.test(l)||/Nuke vs .+: (DE|AE|EX)/.test(l));
+        const retreats=tl.filter(l=>/Mine vs .+: (DR|AR)/.test(l)||/Missile vs .+: (DR|AR)/.test(l));
+        const jammed=tl.filter(l=>/CJS jammed/.test(l));
+        const nuked=tl.filter(l=>/NUKE detonates/.test(l));
+        const noTarget=tl.filter(l=>/no targets/.test(l));
+        if(nuked.length&&kills.length){
+          return `☢ <b>NUKE detonated!</b> ${kills.length} unit(s) eliminated by blast. Owner pays <b>10VP penalty</b>. ${jammed.length?`CJS jammed ${jammed.length} other missile(s).`:''}`;
+        } else if(kills.length){
+          const who=kills[0].replace(/T\d+: /,'').replace(/: (DE|AE|EX)/,' eliminated!');
+          return `💥 <b>Direct hit! ${who}</b> ${kills.length>1?`(${kills.length} units total destroyed)`:''} ${jammed.length?`CJS blocked ${jammed.length} missile(s).`:''}`;
+        } else if(jammed.length&&retreats.length){
+          return `<b>Electronic warfare saves the day</b> — CJS jammed ${jammed.length} missile(s). ${retreats.length} unit(s) forced to retreat.`;
+        } else if(jammed.length){
+          return `<span class="usa">CJS countermeasures active</span> — ${jammed.length} missile(s) jammed. No casualties.`;
+        } else if(retreats.length){
+          return `<b>Near misses</b> — ${retreats.length} unit(s) forced to retreat. No eliminations.`;
+        } else if(noTarget.length){
+          return `Missiles drift past — <b>no valid targets</b> this sweep. Ordnance expires before next orbital phase.`;
+        }
+        return `<b>Mine/missile phase</b> — nothing in range. Mines continue orbit.`;
       }
       case 'COMBAT': {
-        let note = `<b>Normal combat</b> — HKs attack. CJS gives ±1 DEF to units within radius 2. `;
-        if(kill.length>0){
-          note += `${kill.length} unit(s) destroyed this turn. `;
+        // About to fight — preview possible engagements
+        const fights=[];
+        s.units.filter(u=>!u.destroyed&&u.hex&&u.type.atk>0).forEach(atk=>{
+          s.units.filter(e=>!e.destroyed&&e.hex&&e.side!==atk.side&&e.hex.q===atk.hex.q&&e.hex.r===atk.hex.r&&e.typeId!=='MINE').forEach(def=>{
+            fights.push({atk,def});
+          });
+        });
+        const uniqueFights=[...new Map(fights.map(f=>[`${f.atk.hex.q},${f.atk.hex.r}`,f])).values()];
+        let note=`<b>Normal combat</b> — ${fights.length} attack${fights.length!==1?'s':''} queued. CJS gives ±1 DEF within radius 2. `;
+        if(uniqueFights.length>0){
+          const f=uniqueFights[0];
+          note+=`${f.atk.side.toUpperCase()} ${f.atk.type.short} meets ${f.def.side.toUpperCase()} ${f.def.type.short} at ring ${getRing(f.atk.hex)}.`;
         }
-        note += `Differential table: +3→DE, 0→EX, −3→AR.`;
         return note;
       }
-      case 'SCORING':
-        return `<b>Scoring</b> — EWRs inside enemy cone earn <b>3VP each</b>, COM/CJS over friendly territory earn <b>2VP</b>. `+
-          `${scoreStr}. ${lead}. Win at 200VP gap.`;
+      case 'SCORING': {
+        // Scoring already ran — show what was earned
+        const tl=this._tlog(s,t);
+        const usaLines=tl.filter(l=>/^T\d+: USA .+\+\d+VP/.test(l));
+        const apuLines=tl.filter(l=>/^T\d+: APU .+\+\d+VP/.test(l));
+        const usaGain=usaLines.reduce((n,l)=>{const m=l.match(/\+(\d+)VP/);return n+(m?+m[1]:0);},0);
+        const apuGain=apuLines.reduce((n,l)=>{const m=l.match(/\+(\d+)VP/);return n+(m?+m[1]:0);},0);
+        const jammedEWR=tl.filter(l=>/EWR jammed/.test(l));
+        let note=`<b>Scoring phase:</b> `;
+        if(usaGain>0) note+=`<span class="usa">USA +${usaGain}VP</span> `;
+        if(apuGain>0) note+=`<span class="apu">APU +${apuGain}VP</span>. `;
+        if(jammedEWR.length) note+=`${jammedEWR.length} EWR(s) jammed — no score. `;
+        note+=`<b>${scoreStr} — ${lead}.</b> Win by opening a 200VP gap.`;
+        return note;
+      }
       default:
         return `Phase: ${phase}`;
+    }
+  }
+
+  // Post-phase recap: shown after a phase has fully executed, for eventful results
+  _getPostAnnotation(phase, s){
+    const t=s.turn; // note: after some advances, turn may have incremented
+    const usa=s.vp.usa, apu=s.vp.apu;
+    const delta=usa-apu;
+    const lead=delta>0?`<span class="usa">USA leads +${delta}</span>`:delta<0?`<span class="apu">APU leads +${Math.abs(delta)}</span>`:'<b>Tied</b>';
+
+    switch(phase){
+      case 'LAUNCH_A': case 'LAUNCH_B': {
+        const side=phase==='LAUNCH_A'?'usa':'apu';
+        const cl=side==='usa'?'usa':'apu';
+        const tl=this._tlog(s,t);
+        const launched=tl.filter(l=>new RegExp(`${side.toUpperCase()} launched`,'i').test(l));
+        const fired=tl.filter(l=>new RegExp(`${side.toUpperCase()} OWP fired OLR`,'i').test(l));
+        const missiles=fired.filter(l=>/MISSILE/.test(l)).length;
+        const nukes=fired.filter(l=>/NUKE/.test(l)).length;
+        let note=`<span class="${cl}"><b>${side.toUpperCase()} launch summary:</b></span> `;
+        if(launched.length) note+=`${launched.length} unit${launched.length!==1?'s':''} inserted into orbit. `;
+        if(missiles>0||nukes>0){
+          note+=`${missiles>0?`${missiles} missile${missiles!==1?'s':''}`:''}`+
+                `${missiles>0&&nukes>0?' + ':''}${nukes>0?`${nukes} nuke${nukes!==1?'s':''} (☢!)`:''} fired. `;
+        }
+        if(!launched.length&&!missiles&&!nukes) note+=`No actions taken.`;
+        return note;
+      }
+      case 'OPT_A': case 'OPT_B': {
+        const side=phase==='OPT_A'?'usa':'apu';
+        const cl=side;
+        const tl=this._tlog(s,t);
+        const moved=tl.filter(l=>new RegExp(`${side.toUpperCase()} \\w+ moved`).test(l));
+        if(!moved.length) return '';
+        return `<span class="${cl}"><b>${side.toUpperCase()} repositioned ${moved.length} unit${moved.length!==1?'s':''}.</b></span>`;
+      }
+      case 'MINE_CBT': {
+        // Already handled in _getAnnotation('MINE_CBT') — return empty to avoid double display
+        return '';
+      }
+      case 'COMBAT': {
+        const tl=this._tlog(s,t);
+        const kills=tl.filter(l=>/ → (DE|AE|EX)/.test(l));
+        const atmo=tl.filter(l=>/atmosphere/.test(l));
+        if(!kills.length&&!atmo.length) return `<b>Combat resolved</b> — no eliminations. ${lead}.`;
+        let note=`<b>Battle report:</b> ${kills.length} unit${kills.length!==1?'s':''} destroyed`;
+        if(atmo.length) note+=`, ${atmo.length} lost to atmospheric decay`;
+        note+=`. ${lead}.`;
+        return note;
+      }
+      case 'SCORING': {
+        // Show if someone is close to winning
+        const gap=200-Math.abs(s.vp.usa-s.vp.apu);
+        if(gap<50) return `⚠ <b>DANGER — only ${gap}VP from a game-ending 200VP gap!</b> ${lead}.`;
+        return '';
+      }
+      default: return '';
     }
   }
 }
