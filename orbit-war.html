@@ -1809,7 +1809,7 @@ class Engine {
   _inCone(h, side) {
     const a=((this._hexAngleDeg(h)+360)%360);
     const rot=this.state.earthRot*60;
-    const center=side==='usa'?(270+rot)%360:(90+rot)%360;
+    const center=side==='usa'?((270-rot)%360+360)%360:((90-rot)%360+360)%360;
     const diff=Math.min(Math.abs(a-center),360-Math.abs(a-center));
     return diff<=60;
   }
@@ -2405,8 +2405,8 @@ class Renderer {
       ctx.arc(ep.x,ep.y,mr,a-Math.PI/3,a+Math.PI/3);
       ctx.closePath();ctx.fill();ctx.restore();
     };
-    draw((270+rot)%360,'#e84040');
-    draw((90+rot)%360,'#4090e8');
+    draw(((270-rot)%360+360)%360,'#e84040');
+    draw(((90-rot)%360+360)%360,'#4090e8');
 
     // Expanding pulse ring + label around Earth during rotation
     if(this._earthRotAnim){
