@@ -2765,22 +2765,22 @@ class Renderer {
     const sz=this.sz;
     ctx.save();
 
-    // ── Phase 1 (t 0–0.18): white-hot initial flash ───────────
+    // ── Phase 1 (t 0–0.25): white-hot flash bleeding into green ─
     if(t<0.25){
       const p=t/0.25;
       const r=sz*(1.2+p*5);
       const a=p<0.4?p/0.4:1-(p-0.4)/0.6;
       const g=ctx.createRadialGradient(cp.x,cp.y,0,cp.x,cp.y,r);
-      g.addColorStop(0,  `rgba(255,255,255,${a})`);
-      g.addColorStop(0.25,`rgba(255,250,180,${a*.95})`);
-      g.addColorStop(0.55,`rgba(255,160,0,${a*.7})`);
-      g.addColorStop(0.8, `rgba(255,40,0,${a*.35})`);
+      g.addColorStop(0,   `rgba(255,255,255,${a})`);
+      g.addColorStop(0.2, `rgba(200,255,180,${a*.95})`);
+      g.addColorStop(0.55,`rgba(0,255,100,${a*.75})`);
+      g.addColorStop(0.8, `rgba(0,180,40,${a*.4})`);
       g.addColorStop(1,   `rgba(0,0,0,0)`);
       ctx.fillStyle=g;
       ctx.beginPath();ctx.arc(cp.x,cp.y,r,0,Math.PI*2);ctx.fill();
     }
 
-    // ── Expanding shockwave ring (t 0.05–0.65) ────────────────
+    // ── Expanding shockwave rings (t 0.05–0.65) in toxic green ─
     if(t>0.05&&t<0.65){
       const p=(t-0.05)/0.6;
       const maxR=sz*5.5;
@@ -2788,23 +2788,23 @@ class Renderer {
       const a=(1-p)*0.9;
       const lw=sz*(0.5-p*0.35);
       ctx.beginPath();ctx.arc(cp.x,cp.y,r,0,Math.PI*2);
-      ctx.strokeStyle=`rgba(255,210,50,${a})`;
+      ctx.strokeStyle=`rgba(80,255,120,${a})`;
       ctx.lineWidth=Math.max(1,lw);ctx.stroke();
       if(r>sz*0.8){
         ctx.beginPath();ctx.arc(cp.x,cp.y,r*0.65,0,Math.PI*2);
-        ctx.strokeStyle=`rgba(255,80,0,${a*0.6})`;
+        ctx.strokeStyle=`rgba(0,200,60,${a*0.6})`;
         ctx.lineWidth=Math.max(1,lw*0.5);ctx.stroke();
       }
-      // Second trailing ring slightly behind
+      // Second trailing ring
       const r2=(p-0.08)*maxR;
       if(r2>0){
         ctx.beginPath();ctx.arc(cp.x,cp.y,r2,0,Math.PI*2);
-        ctx.strokeStyle=`rgba(255,140,20,${a*0.4})`;
+        ctx.strokeStyle=`rgba(160,255,80,${a*0.4})`;
         ctx.lineWidth=Math.max(1,lw*0.3);ctx.stroke();
       }
     }
 
-    // ── Blast hex glow (t 0.12–1.0) ───────────────────────────
+    // ── Blast hex glow — sickly green radiation (t 0.12–1.0) ──
     if(t>0.12){
       blastHexes.forEach(bh=>{
         const isCenter=bh.q===hex.q&&bh.r===hex.r;
@@ -2814,36 +2814,36 @@ class Renderer {
         const fadeStart=0.55, fade=t>fadeStart?(1-(t-fadeStart)/(1-fadeStart)):1;
         const intensity=Math.min(tp*3,1)*fade;
         const fill=isCenter
-          ?`rgba(255,80,0,${intensity*0.65})`
-          :`rgba(255,150,0,${intensity*0.38})`;
+          ?`rgba(0,220,80,${intensity*0.55})`
+          :`rgba(60,255,100,${intensity*0.3})`;
         const stroke=isCenter
-          ?`rgba(255,160,20,${intensity})`
-          :`rgba(255,200,50,${intensity*0.7})`;
+          ?`rgba(100,255,120,${intensity})`
+          :`rgba(80,255,80,${intensity*0.65})`;
         this._hlHex(bh,fill,stroke,isCenter?3:1.5);
       });
     }
 
-    // ── ☢ symbol at detonation hex (t 0.08–0.88) ─────────────
+    // ── ☢ symbol (t 0.08–0.88) in radioactive green ───────────
     if(t>0.08&&t<0.88){
       const a=t<0.22?(t-0.08)/0.14:t>0.72?1-(t-0.72)/0.16:1;
       const pulse=1+0.12*Math.sin(t*Math.PI*12);
       const fs=Math.max(14,sz*1.5)*pulse;
       ctx.font=`bold ${fs}px monospace`;
       ctx.textAlign='center';ctx.textBaseline='middle';
-      // Dark outline
       ctx.lineWidth=4;ctx.strokeStyle=`rgba(0,0,0,${a*0.8})`;
       ctx.strokeText('☢',cp.x,cp.y);
-      ctx.fillStyle=`rgba(255,230,50,${a})`;
+      ctx.fillStyle=`rgba(160,255,100,${a})`;
       ctx.fillText('☢',cp.x,cp.y);
     }
 
-    // ── Smoke/fade-out particle haze (t 0.6–1.0) ─────────────
+    // ── Radioactive green haze fadeout (t 0.6–1.0) ────────────
     if(t>0.6){
       const p=(t-0.6)/0.4;
-      const a=(1-p)*0.25;
+      const a=(1-p)*0.32;
       const r=sz*(2+p*2);
       const g=ctx.createRadialGradient(cp.x,cp.y,sz*0.5,cp.x,cp.y,r);
-      g.addColorStop(0,`rgba(80,60,40,${a})`);
+      g.addColorStop(0,`rgba(0,120,40,${a})`);
+      g.addColorStop(0.5,`rgba(20,80,20,${a*0.6})`);
       g.addColorStop(1,`rgba(0,0,0,0)`);
       ctx.fillStyle=g;
       ctx.beginPath();ctx.arc(cp.x,cp.y,r,0,Math.PI*2);ctx.fill();
