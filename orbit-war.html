@@ -5500,6 +5500,10 @@ class SpotlightTutorial {
     if(n >= this.steps.length){ this._playNow(); return; }
     this.step = n;
     const s = this.steps[n];
+    // Clear all visual trails and cancel any active animations before each step
+    const st = this.eng.state;
+    if(st){ st.orbTrails=null; st.launchTrails=null; st.optTrails=null; }
+    this.ren._orbAnim=null; this.ren._lastOrbTrails=null; this.ren._nukeAnim=null;
     // Run engine action for this step
     try{ if(s.exec) s.exec.call(this); } catch(e){ console.warn('SpotTut exec err:', e); }
     this.ren.tutHL = new Set();
@@ -5716,6 +5720,41 @@ class SpotlightTutorial {
           this.eng.state.units.forEach(u=>u.attackedThisTurn=false);
           const h2=this.tu.hk2, ae=this.tu.aEwr;
           if(h2&&ae&&!h2.destroyed&&!ae.destroyed) this.eng.combat(h2.id,ae.id);
+        }),
+
+      T('LIVE NUKE DEMO — AURORA BLAST',
+        `Watch a <b>nuclear detonation</b> happen in real time. The APU OWP fires a nuke at a cluster of USA units. The <b>aurora blast</b> lights up the target hex and all 6 adjacent hexes — any unit caught in the radius is hit (ATK 5), friend or foe. The owner takes <b>−10 VP</b> regardless of result.`
+        + HINT(`Notice how the shockwave rings and curtain rays fan out with the characteristic multi-color aurora palette. In a real game, this is your cue to check whether any of your own units are inside the radius before authorizing a nuke strike — friendly fire is very real.`),
+        'board','right',['aOwp'],
+        function(){
+          const eng=this.eng; const s=eng.state;
+          // Clear any leftover ordnance from previous steps
+          s.units.filter(u=>(u.typeId==='MISSILE'||u.typeId==='NUKE')&&!u.destroyed)
+            .forEach(u=>{u.destroyed=true;u.hex=null;});
+          // Give APU OWP a nuke and set phase for OLR
+          const ow=this.tu.aOwp;
+          if(ow&&!ow.destroyed&&ow.hex){
+            ow.weapons={...(ow.weapons||{}),nukes:1};
+            // Find a target 1-2 hexes away in valid ring
+            const cands=hexesInRange(ow.hex,2).filter(h=>{
+              const r=getRing(h); return r>=1&&r<=10&&(h.q!==ow.hex.q||h.r!==ow.hex.r);
+            });
+            const tgt=cands[Math.floor(cands.length/2)]||{q:ow.hex.q,r:ow.hex.r-2};
+            // Place USA targets scattered around blast zone
+            hexesInRange(tgt,1)
+              .filter(h=>getRing(h)>=1&&getRing(h)<=10)
+              .slice(0,4)
+              .forEach(h=>this._place('HK','usa',h.q,h.r));
+            // Fire nuke via OLR
+            s.phase='LAUNCH_B'; s.activePlayer='apu';
+            eng.resetOLRCounters('apu');
+            eng.fireOLR(ow.id,'NUKE',tgt);
+            // Detonate in mine combat — nukeEvents is populated here
+            s.phase='MINE_CBT';
+            s.units.forEach(u=>{u.moved=false;u.resupplying=false;});
+            eng._cjsJamMissiles(); eng._mineCombat();
+            s.units.forEach(u=>u.attackedThisTurn=false);
+          }
         }),
 
       T('PHASE 9 — SCORING',
