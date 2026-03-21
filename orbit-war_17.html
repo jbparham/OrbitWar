@@ -880,7 +880,7 @@ const UTYPES = {
   SS:   {id:'SS',  name:'Space Station',            short:'SS',  atk:4,def:4,mov:1,
          cost:{orbit:12,deep:null,earth:null}, maxN:2, vpKill:10, canWep:true, canOLR:true, maxWep:999},
   SUPPLY:{id:'SUPPLY',name:'Supply Counter',          short:'SUP', atk:0,def:1,mov:0,
-         cost:{orbit:1,deep:1,earth:1}, isSupply:true, canWep:true, maxWep:10,
+         cost:{orbit:1,deep:1,earth:1}, isSupply:true, canWep:true, maxWep:10, vpKill:1,
          note:'Floating weapons cache. OWP/Shuttle in same hex may draw from it during optional movement. Removed when empty.'}
 };
 
@@ -1390,7 +1390,7 @@ class Engine {
     if(!s.launchTrails) s.launchTrails=[];
     s.launchTrails.push({from:{q:0,r:0}, to:{...targetHex}, side:s.activePlayer, kind:'elr', payload:unit.typeId});
     this._emit();
-    return{ok:true};
+    return{ok:true, elrId:elr.id};
   }
 
   // Bring in a deep space reinforcement to the board edge (ring 6)
@@ -1476,7 +1476,7 @@ class Engine {
     if(!s.launchTrails) s.launchTrails=[];
     s.launchTrails.push({from:{...launcher.hex}, to:{...targetHex}, side:launcher.side, kind:'olr', payload:payloadType});
     this._emit();
-    return{ok:true};
+    return{ok:true, payloadId:payload.id};
   }
 
   // Reset per-turn OLR counters (called at start of launch phases)
@@ -1522,6 +1522,92 @@ class Engine {
     if(!this.state.optTrails) this.state.optTrails=[];
     this.state.optTrails.push({from:fromHex,to:{...toHex},side:u.side,typeId:u.typeId});
     this._log(`${u.side.toUpperCase()} ${u.type.short} moved`);
+    this._emit(); return{ok:true};
+  }
+
+  // Undo the most recent optional move for a specific unit
+  undoMove(uid, fromHex){
+    const u=this._get(uid); if(!u)return{ok:false,err:'Not found'};
+    if(!u.moved)return{ok:false,err:'Unit has not moved this phase'};
+    // Remove the last matching trail entry
+    if(this.state.optTrails){
+      for(let i=this.state.optTrails.length-1;i>=0;i--){
+        const t=this.state.optTrails[i];
+        if(t.from&&t.from.q===fromHex.q&&t.from.r===fromHex.r){
+          this.state.optTrails.splice(i,1); break;
+        }
+      }
+    }
+    u.hex={...fromHex};
+    u.moved=false;
+    this._log(`${u.side.toUpperCase()} ${u.type.short} move undone`);
+    this._emit(); return{ok:true};
+  }
+
+  // Undo an ELR launch: remove unit from orbit, restore to earthUnits, free the ELR
+  undoELRLaunch(unitId, elrId){
+    const s=this.state;
+    const unit=s.units.find(u=>u.id===unitId);
+    if(!unit)return{ok:false,err:'Unit not found in orbit'};
+    const side=unit.side;
+    s.units=s.units.filter(u=>u.id!==unitId);
+    unit.hex=null; unit.zone='earth'; unit.launched=false; unit.faceDown=true;
+    s.earthUnits[side].push(unit);
+    const elr=s.earthUnits[side].find(u=>u.id===elrId);
+    if(elr) elr.launched=false;
+    if(s.elrLaunches&&s.elrLaunches[side]>0) s.elrLaunches[side]--;
+    if(s.launchTrails){
+      for(let i=s.launchTrails.length-1;i>=0;i--){
+        if(s.launchTrails[i].kind==='elr'&&s.launchTrails[i].payload===unit.typeId){
+          s.launchTrails.splice(i,1); break;
+        }
+      }
+    }
+    this._log(`${side.toUpperCase()} ${unit.type.short} ELR launch undone`);
+    this._emit(); return{ok:true};
+  }
+
+  // Undo a deep space entry: remove unit from orbit, restore to reinforcements
+  undoDeepSpaceLaunch(unitId){
+    const s=this.state;
+    const unit=s.units.find(u=>u.id===unitId);
+    if(!unit)return{ok:false,err:'Unit not found in orbit'};
+    const side=unit.side;
+    s.units=s.units.filter(u=>u.id!==unitId);
+    unit.hex=null; unit.zone='deep'; unit.launched=false; unit.faceDown=true;
+    s.reinforcements[side].push(unit);
+    if(s.launchTrails){
+      for(let i=s.launchTrails.length-1;i>=0;i--){
+        if(s.launchTrails[i].kind==='deep'&&s.launchTrails[i].payload===unit.typeId){
+          s.launchTrails.splice(i,1); break;
+        }
+      }
+    }
+    this._log(`${side.toUpperCase()} ${unit.type.short} deep space entry undone`);
+    this._emit(); return{ok:true};
+  }
+
+  // Undo an OLR fire: remove payload from board, restore weapon to launcher
+  undoOLRLaunch(payloadId, launcherId, payloadType){
+    const s=this.state;
+    const payload=s.units.find(u=>u.id===payloadId);
+    if(!payload)return{ok:false,err:'Payload not found'};
+    const launcher=this._get(launcherId);
+    if(!launcher)return{ok:false,err:'Launcher not found'};
+    s.units=s.units.filter(u=>u.id!==payloadId);
+    const isNuke=['NUKE','MIRV3','MIRV7'].includes(payloadType);
+    if(payloadType==='MINE')       launcher.weapons.mines++;
+    else if(payloadType==='MISSILE') launcher.weapons.missiles++;
+    else if(isNuke){ launcher.weapons.nukes++; launcher.nukeOLRFired=false; }
+    if((launcher.olrsFiredThisTurn||0)>0) launcher.olrsFiredThisTurn--;
+    if(s.launchTrails){
+      for(let i=s.launchTrails.length-1;i>=0;i--){
+        if(s.launchTrails[i].kind==='olr'&&s.launchTrails[i].payload===payloadType){
+          s.launchTrails.splice(i,1); break;
+        }
+      }
+    }
+    this._log(`${launcher.side.toUpperCase()} ${launcher.type.short} OLR (${payloadType}) undone`);
     this._emit(); return{ok:true};
   }
 
@@ -1962,6 +2048,8 @@ class Renderer {
     if(this.olrLauncher) this._drawOLRRange(this.olrLauncher);
     else this._drawOLRAvailable();
     if(this.validMoves.length)this._drawMoves();
+    // Combat target highlights (red hexes) during COMBAT phase
+    if(this.eng.state)this._drawCombatTargets();
     // Supply counter glow when an OWP/Shuttle is selected
     if(this.eng.state)this._drawSupplyGlow();
     // CJS radius on hover
@@ -1986,6 +2074,37 @@ class Renderer {
       // Highlight the CJS itself with a stronger ring
       this._hlHex(cjs.hex,'rgba(0,255,170,.12)','rgba(0,255,170,.7)',2);
     });
+  }
+
+  // Highlight attackable hexes during COMBAT phase
+  _drawCombatTargets(){
+    const s=this.eng.state;
+    if(!s||s.phase!=='COMBAT')return;
+    // Build per-hex unit sets (exclude mines — they don't participate in normal combat)
+    const byHex={};
+    s.units.filter(u=>!u.destroyed&&u.hex&&u.typeId!=='MINE').forEach(u=>{
+      const k=`${u.hex.q},${u.hex.r}`;
+      if(!byHex[k])byHex[k]={hex:u.hex,sides:new Set(),hasAttacker:false};
+      byHex[k].sides.add(u.side);
+      const ready=u.type.atk>0&&!u.attackedThisTurn&&
+                  !(u.typeId==='OWP'&&(u.olrsFiredThisTurn||0)>0)&&
+                  !u.resupplying;
+      if(ready)byHex[k].hasAttacker=true;
+    });
+    // Global hint: light red on any hex where both sides present and an attacker is ready
+    Object.values(byHex).forEach(({hex,sides,hasAttacker})=>{
+      if(sides.size>=2&&hasAttacker)
+        this._hlHex(hex,'rgba(255,70,30,.11)','rgba(255,80,40,.55)',1.2);
+    });
+    // Brighter highlight when attacker is selected and has valid targets
+    const sel=this.sel;
+    if(sel&&sel.hex&&!sel.destroyed&&sel.type.atk>0&&!sel.attackedThisTurn&&
+       !sel.resupplying&&!(sel.typeId==='OWP'&&(sel.olrsFiredThisTurn||0)>0)){
+      const enemies=s.units.filter(u=>!u.destroyed&&u.hex&&u.side!==sel.side&&
+        u.hex.q===sel.hex.q&&u.hex.r===sel.hex.r&&u.typeId!=='MINE');
+      if(enemies.length)
+        this._hlHex(sel.hex,'rgba(255,60,20,.24)','#ff4820',2.2);
+    }
   }
 
   // Highlight Supply counters in same hex as selected OWP/Shuttle (resupply available)
@@ -2945,6 +3064,8 @@ class UI {
     this.pendingOLRPayload=null;
     this.setupQueue={usa:[],apu:[]};
     this.autoAdvancing=false;
+    this._moveHistory=[];   // [{uid, fromHex}] — stack of undoable moves for current OPT phase
+    this._launchHistory=[]; // [{type,unitId,elrId?}|{type,payloadId,launcherId,payloadType}] — stack for LAUNCH phases
     this.eng.on(s=>this._onState(s));
   }
 
@@ -3543,12 +3664,15 @@ class UI {
       if(isDeep&&ring!==10){ this._toast('Deep space units enter at ring 10 only'); return; }
       if(!isDeep&&(ring<1||ring>3)){ this._toast('ELR can only reach rings 1–3 (MA=3 from Earth)'); return; }
 
+      const launchingUnit=this.pendingLaunchUnit;
       const result=isDeep
-        ? this.eng.bringInDeepSpace(this.pendingLaunchUnit.id, hex)
-        : this.eng.launchFromEarth(this.pendingLaunchUnit.id, hex);
+        ? this.eng.bringInDeepSpace(launchingUnit.id, hex)
+        : this.eng.launchFromEarth(launchingUnit.id, hex);
 
       if(result.ok){
-        this._toast(`${this.pendingLaunchUnit.type.short} launched!`);
+        if(isDeep) this._launchHistory.push({type:'deep', unitId:launchingUnit.id});
+        else       this._launchHistory.push({type:'elr',  unitId:launchingUnit.id, elrId:result.elrId});
+        this._toast(`${launchingUnit.type.short} launched!`);
         this._cancelMode();
         this._showLaunchPanel(s.activePlayer);
         this._updateUI();
@@ -3564,9 +3688,11 @@ class UI {
       const dist=hexDist(launcher.hex, hex);
       if(dist>3){ this._toast('Target out of OLR range (max 3 hexes)'); return; }
 
-      const result=this.eng.fireOLR(launcher.id, this.pendingOLRPayload, hex);
+      const olrPayload=this.pendingOLRPayload;
+      const result=this.eng.fireOLR(launcher.id, olrPayload, hex);
       if(result.ok){
-        this._toast(`OLR fired — ${this.pendingOLRPayload} placed at target`);
+        this._launchHistory.push({type:'olr', payloadId:result.payloadId, launcherId:launcher.id, payloadType:olrPayload});
+        this._toast(`OLR fired — ${olrPayload} placed at target`);
         this._cancelMode();
         this._showLaunchPanel(s.activePlayer);
         this._updateUI();
@@ -3586,9 +3712,12 @@ class UI {
 
       if(isValidDest){
         // Always move to a valid destination, even if friendly units are there
-        const r=this.eng.moveUnit(this.sel.id,hex);
+        const fromHex={...this.sel.hex}; // capture before move for undo
+        const movingId=this.sel.id;
+        const r=this.eng.moveUnit(movingId,hex);
         if(r.ok){
-          this._setStatus('Moved. Select another unit or advance phase.');
+          this._moveHistory.push({uid:movingId,fromHex});
+          this._setStatus('Moved. Select another unit, ⟲ Undo, or advance phase.');
           this.sel=null; this.ren.setSelected(null); this._hideUnitPanel(); this.mode='select';
         } else { this._toast(r.err); }
         this.ren.render(); this._updateUI(); return;
@@ -3631,6 +3760,12 @@ class UI {
     if(units.length){
       const selectable=isCombatPhase
         ? units.filter(u=>!u.faceDown&&!u.destroyed)
+               .sort((a,b)=>{
+                 // Prefer units that can still attack so they surface first on click
+                 const aReady=a.type.atk>0&&!a.attackedThisTurn?1:0;
+                 const bReady=b.type.atk>0&&!b.attackedThisTurn?1:0;
+                 return bReady-aReady;
+               })
         : units.filter(u=>u.side===s.activePlayer&&!u.faceDown&&!u.destroyed&&!(isMovePhase&&u.typeId==='MINE'));
       const theirs=units.filter(u=>u.side!==s.activePlayer&&!u.faceDown&&!u.destroyed);
 
@@ -4097,10 +4232,10 @@ class UI {
       ORB_MOVE:'Orbital movement complete — all satellites swept counterclockwise. Now launch reinforcements into their new positions. Click Next Phase →',
       LAUNCH_A:`${ap} Launch Phase — click a 🚀 unit on the board to fire OLRs, or use the sidebar panel for ELR launches. Launched units skip optional movement this turn. Click Next Phase → when done.`,
       LAUNCH_B:`${ap} Launch Phase — click a 🚀 unit on the board to fire OLRs, or use the sidebar panel for ELR launches. Launched units skip optional movement this turn. Click Next Phase → when done.`,
-      OPT_A:`${ap} Optional Movement — click any of your units to move it. Green hexes show valid destinations. Units launched this turn cannot move. Click Next Phase → when done.`,
-      OPT_B:`${ap} Optional Movement — click any of your units to move it. Green hexes show valid destinations. Units launched this turn cannot move. Click Next Phase → when done.`,
+      OPT_A:`${ap} Optional Movement — click any of your units to move it. Green hexes = valid destinations. Use ⟲ Undo Move to reverse the last move. Click Next Phase → when done.`,
+      OPT_B:`${ap} Optional Movement — click any of your units to move it. Green hexes = valid destinations. Use ⟲ Undo Move to reverse the last move. Click Next Phase → when done.`,
       MINE_CBT:'Mine Combat resolved automatically — check log for results. Click Next Phase →',
-      COMBAT:'Normal Combat — click any unit with ATK > 0, then ⚔ Attack. Both players may attack. Click Next Phase → when done.',
+      COMBAT:'Normal Combat — red hexes show attack opportunities. Click any unit with ATK > 0, then ⚔ Attack. Both players may attack. Click Next Phase → when done.',
       SCORING:'Scoring complete — VPs awarded. Check the log. Click Next Phase →',
     };
     this._setStatus(hints[s.phase]||'Ready.');
@@ -4195,19 +4330,56 @@ class UI {
     const s=this.eng.state; if(!s||!s.setup.complete)return;
     const bar=document.getElementById('action-bar'); if(!bar)return;
     const isLaunchPhase=['LAUNCH_A','LAUNCH_B'].includes(s.phase);
+    const isMovePhase=['OPT_A','OPT_B'].includes(s.phase);
     let html=`<button class="btn-a" id="btn-next-phase">Next Phase →</button>`;
     if(this.mode==='move')   html+=`<button class="btn-a on" id="btn-cancel-mode">✕ Cancel Move</button>`;
     if(this.mode==='attack') html+=`<button class="btn-a on" id="btn-cancel-mode">✕ Cancel Attack</button>`;
     if(this.mode==='launch') html+=`<button class="btn-a on" id="btn-cancel-mode">✕ Cancel Launch</button>`;
     if(this.mode==='olr')    html+=`<button class="btn-a on" id="btn-cancel-mode">✕ Cancel OLR</button>`;
+    if(isMovePhase&&this._moveHistory.length>0)
+      html+=`<button class="btn-a" id="btn-undo-move" style="color:var(--gold);border-color:var(--gold)">⟲ Undo Move</button>`;
+    if(isLaunchPhase&&this._launchHistory.length>0)
+      html+=`<button class="btn-a" id="btn-undo-launch" style="color:var(--gold);border-color:var(--gold)">⟲ Undo Launch</button>`;
     bar.innerHTML=html;
     document.getElementById('btn-next-phase')?.addEventListener('click',()=>{
       this._cancelMode();
       this._hideLaunchPanel();
+      this._moveHistory=[];   // clear undo history on phase advance
+      this._launchHistory=[];
       this.eng.advancePhase();
       this._maybeAutoAdvance(); // auto-chain through passive phases
     });
     document.getElementById('btn-cancel-mode')?.addEventListener('click',()=>this._cancelMode());
+    document.getElementById('btn-undo-move')?.addEventListener('click',()=>{
+      const last=this._moveHistory[this._moveHistory.length-1];
+      if(!last)return;
+      const r=this.eng.undoMove(last.uid,last.fromHex);
+      if(r.ok){
+        this._moveHistory.pop();
+        this._toast('Move undone');
+      } else {
+        this._toast(r.err||'Cannot undo');
+      }
+      this.sel=null; this.ren.setSelected(null); this._hideUnitPanel(); this.mode='select';
+      this.ren.render(); this._updateUI();
+    });
+    document.getElementById('btn-undo-launch')?.addEventListener('click',()=>{
+      const last=this._launchHistory[this._launchHistory.length-1];
+      if(!last)return;
+      let r;
+      if(last.type==='elr')  r=this.eng.undoELRLaunch(last.unitId, last.elrId);
+      else if(last.type==='deep') r=this.eng.undoDeepSpaceLaunch(last.unitId);
+      else if(last.type==='olr')  r=this.eng.undoOLRLaunch(last.payloadId, last.launcherId, last.payloadType);
+      if(r&&r.ok){
+        this._launchHistory.pop();
+        this._toast('Launch undone');
+      } else {
+        this._toast((r&&r.err)||'Cannot undo');
+      }
+      this._cancelMode();
+      this._showLaunchPanel(s.activePlayer);
+      this.ren.render(); this._updateUI();
+    });
 
     // Show/hide launch panel based on phase
     if(isLaunchPhase && s.activePlayer){
