@@ -5692,39 +5692,8 @@ class SpotlightTutorial {
 
       T('NUKES — AREA BLAST, HIGH RISK',
         `OWPs that carry <b>nukes</b> fire them via OLR (range 3, ATK 5). Unlike missiles, a nuke has a <b>blast radius of 1 hex</b> — it combats <em>every unit</em> (friend and foe) in the target hex and all 6 adjacent hexes. The owner always loses <b>10 VP</b>. OWPs marked ☢ can also <b>suicide-detonate</b> during Optional Movement: ATK 5 blast radius 1 kills everything nearby — including the OWP itself.`
+        + `<em style="display:block;margin-top:6px;color:var(--accent)">☢ Watch the board — a live detonation is playing now.</em>`
         + HINT(`The blast radius makes nukes powerful against <b>clustered units</b> — a ring-1 pile-up is an ideal target. But the −10 VP penalty and friendly-fire risk demand careful aim. Never fire a nuke when your own units are adjacent to the target. Save nukes for clearing a packed hex or as a last-resort suicide detonation when surrounded.`),
-        'full'),
-
-      T('PHASES 5 & 6 — OPTIONAL MOVEMENT',
-        `Each unit may move up to its MA (Movement Allowance). Moving <b>one hex toward Earth is free</b> (gravity assist). Launched units cannot move this turn. If you move a unit and change your mind, the <b>⟲ Undo Move</b> button in the action bar reverses it before the phase ends. A <b>⛽</b> badge appears on any OWP, Shuttle, or Space Station sharing a hex with a Supply counter — a visual reminder that resupply is available if you click the unit.`
-        + HINT(`Optional movement is your primary tactical tool: escape incoming missiles (move out of the target hex), enter the enemy cone with EWRs, set up HK intercepts, or move OWPs inward after firing. <b>After a combat retreat, immediately move outward</b> — units stuck at ring 1 get removed when they retreat again.`),
-        'board','right',[],
-        function(){
-          this.eng.state.phase='MINE_CBT';
-          this.eng.state.units.forEach(u=>{ u.moved=false; u.resupplying=false; });
-        }),
-
-      T('PHASE 7 — MINE COMBAT',
-        `<b>Auto-resolves every turn before normal combat.</b> The APU mine (ATK 6) hits HK-1 (DEF 3) — diff +3 = <em>Defender Eliminated</em>. The missile also auto-fires.`
-        + HINT(`If a unit retreats all the way to ring 1 and retreats again, it's pulled into the atmosphere. Watch for the orange <span style="color:#ffaa60">&#9732; Orbital Decay</span> toast — that's a unit lost to ring pressure, not combat. Move outward after retreats to avoid this.`),
-        'game-log','left',['hk1','aMine'],
-        function(){
-          this.eng._cjsJamMissiles(); this.eng._mineCombat();
-        }),
-
-      T('PHASE 8 — NORMAL COMBAT',
-        `USA HK-2 (ATK 4) attacks APU Spy EWR (DEF 1). Diff +3 = <b>DE</b> (Defender Eliminated). USA earns <b>3 VP</b> for the kill. <b>Red hexes</b> on the board show where attacks are available. <b>Shortcut:</b> clicking a red hex when only one side has a ready attacker automatically opens the attack dialog — no need to select your unit first. Full CRT (Combat Results Table): −6 to −4=AE (Attacker Elim.), −3/−2=AR (Attacker Retreats), −1/0=EX (Exchange — both sides take one hit), +1/+2=DR (Defender Retreats), +3 to +6=DE (Defender Elim.).`
-        + HINT(`HK(4) vs HK(3) = DR every time — the defender retreats, nobody dies. Don't waste HKs fighting HKs. HK vs EWR = DE + 3 VP — <b>hunt EWRs</b>. Each EWR you kill stops 3 VP/turn and gives you 3 VP immediately: a 6 VP/turn swing. That's the fastest path to a 200 VP lead.`),
-        'board','right',['hk2','aEwr'],
-        function(){
-          this.eng.state.units.forEach(u=>u.attackedThisTurn=false);
-          const h2=this.tu.hk2, ae=this.tu.aEwr;
-          if(h2&&ae&&!h2.destroyed&&!ae.destroyed) this.eng.combat(h2.id,ae.id);
-        }),
-
-      T('LIVE NUKE DEMO — AURORA BLAST',
-        `Watch a <b>nuclear detonation</b> happen in real time. The APU OWP fires a nuke at a cluster of USA units. The <b>aurora blast</b> lights up the target hex and all 6 adjacent hexes — any unit caught in the radius is hit (ATK 5), friend or foe. The owner takes <b>−10 VP</b> regardless of result.`
-        + HINT(`Notice how the shockwave rings and curtain rays fan out with the characteristic multi-color aurora palette. In a real game, this is your cue to check whether any of your own units are inside the radius before authorizing a nuke strike — friendly fire is very real.`),
         'board','right',['aOwp'],
         function(){
           const eng=this.eng; const s=eng.state;
@@ -5755,6 +5724,33 @@ class SpotlightTutorial {
             eng._cjsJamMissiles(); eng._mineCombat();
             s.units.forEach(u=>u.attackedThisTurn=false);
           }
+        }),
+
+      T('PHASES 5 & 6 — OPTIONAL MOVEMENT',
+        `Each unit may move up to its MA (Movement Allowance). Moving <b>one hex toward Earth is free</b> (gravity assist). Launched units cannot move this turn. If you move a unit and change your mind, the <b>⟲ Undo Move</b> button in the action bar reverses it before the phase ends. A <b>⛽</b> badge appears on any OWP, Shuttle, or Space Station sharing a hex with a Supply counter — a visual reminder that resupply is available if you click the unit.`
+        + HINT(`Optional movement is your primary tactical tool: escape incoming missiles (move out of the target hex), enter the enemy cone with EWRs, set up HK intercepts, or move OWPs inward after firing. <b>After a combat retreat, immediately move outward</b> — units stuck at ring 1 get removed when they retreat again.`),
+        'board','right',[],
+        function(){
+          this.eng.state.phase='MINE_CBT';
+          this.eng.state.units.forEach(u=>{ u.moved=false; u.resupplying=false; });
+        }),
+
+      T('PHASE 7 — MINE COMBAT',
+        `<b>Auto-resolves every turn before normal combat.</b> The APU mine (ATK 6) hits HK-1 (DEF 3) — diff +3 = <em>Defender Eliminated</em>. The missile also auto-fires.`
+        + HINT(`If a unit retreats all the way to ring 1 and retreats again, it's pulled into the atmosphere. Watch for the orange <span style="color:#ffaa60">&#9732; Orbital Decay</span> toast — that's a unit lost to ring pressure, not combat. Move outward after retreats to avoid this.`),
+        'game-log','left',['hk1','aMine'],
+        function(){
+          this.eng._cjsJamMissiles(); this.eng._mineCombat();
+        }),
+
+      T('PHASE 8 — NORMAL COMBAT',
+        `USA HK-2 (ATK 4) attacks APU Spy EWR (DEF 1). Diff +3 = <b>DE</b> (Defender Eliminated). USA earns <b>3 VP</b> for the kill. <b>Red hexes</b> on the board show where attacks are available. <b>Shortcut:</b> clicking a red hex when only one side has a ready attacker automatically opens the attack dialog — no need to select your unit first. Full CRT (Combat Results Table): −6 to −4=AE (Attacker Elim.), −3/−2=AR (Attacker Retreats), −1/0=EX (Exchange — both sides take one hit), +1/+2=DR (Defender Retreats), +3 to +6=DE (Defender Elim.).`
+        + HINT(`HK(4) vs HK(3) = DR every time — the defender retreats, nobody dies. Don't waste HKs fighting HKs. HK vs EWR = DE + 3 VP — <b>hunt EWRs</b>. Each EWR you kill stops 3 VP/turn and gives you 3 VP immediately: a 6 VP/turn swing. That's the fastest path to a 200 VP lead.`),
+        'board','right',['hk2','aEwr'],
+        function(){
+          this.eng.state.units.forEach(u=>u.attackedThisTurn=false);
+          const h2=this.tu.hk2, ae=this.tu.aEwr;
+          if(h2&&ae&&!h2.destroyed&&!ae.destroyed) this.eng.combat(h2.id,ae.id);
         }),
 
       T('PHASE 9 — SCORING',
