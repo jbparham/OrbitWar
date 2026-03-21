@@ -965,7 +965,7 @@ const TUT_STEPS = [
 // 0
 {title:'Welcome to Orbit War',
  meta:'Introduction',
- html:`<strong>Orbit War</strong> simulates satellite warfare between <span style="color:var(--usa)">USA</span> (red) and <span style="color:var(--apu)">APU</span> (blue). Both sides deploy satellites, fire weapons, and score <strong>Victory Points</strong>. Lead by <strong>200 VP</strong> to win. This tutorial walks through two complete turns — just click <strong>Next →</strong> at each step.`,
+ html:`<strong>Orbit War</strong> simulates satellite warfare between <span style="color:var(--usa)">USA</span> (red) and <span style="color:var(--apu)">APU</span> — Asian-Polish Union — (blue). Both sides deploy satellites, fire weapons, and score <strong>Victory Points (VP)</strong>. Lead by <strong>200 VP</strong> to win. This tutorial walks through two complete turns — just click <strong>Next →</strong> at each step.`,
  hl:[]},
 
 // 1
@@ -981,15 +981,15 @@ const TUT_STEPS = [
  <strong>OWP</strong> (Orbital Weapons Platform, ring 5) — fires missiles via rockets, armed with 3 missiles<br>
  <strong>HK-1</strong> (Hunter-Killer, ring 4) — fast attack satellite… and a mine shares its hex<br>
  <strong>HK-2</strong> (ring 3) — ready for normal combat with an APU EWR in the same hex<br>
- <strong>EWR</strong> (ring 4) — already in APU territory, scoring 3 VP/turn<br>
- <strong>CJS + Supply</strong> — electronic warfare and weapon resupply`,
+ <strong>EWR</strong> (Early Warning Recon, ring 4) — already in APU territory, scoring 3 VP/turn<br>
+ <strong>CJS</strong> (Comm Jamming Satellite) + Supply — electronic warfare and weapon resupply`,
  hl:['owp','hk1','hk2','ewr','sup']},
 
 // 3
 {title:'Enemy Forces — APU (Blue)',
  meta:'Turn 1 · Setup',
  html:`APU forces:<br>
- <strong>OWP</strong> (ring 5) — armed with 3 missiles, ready to fire OLRs<br>
+ <strong>OWP</strong> (ring 5) — armed with 3 missiles, ready to fire OLRs (Orbit-Launch Rockets)<br>
  <strong>Mine</strong> (ring 4) — shares a hex with USA HK-1, will auto-fire in Mine Combat<br>
  <strong>EWR "Spy"</strong> (ring 3) — shares hex with USA HK-2, and is in APU's own territory<br>
  <strong>EWR "Scout"</strong> (ring 3) — inside USA's Spotting Cone, scoring 3 VP/turn<br>
@@ -1028,7 +1028,7 @@ const TUT_STEPS = [
 // 7
 {title:'Phase 4 — APU Launches (OLR)',
  meta:'Turn 1 · Phase 4 of 9',
- html:`The APU <strong>OWP fires an OLR</strong> (Orbit-Launch Rocket) carrying a <strong>missile</strong> at a nearby hex. OLRs are free and unlimited, range 3 hexes, max 3 per launcher per turn. The missile sits in its target hex until Mine Combat this turn, when it auto-fires. Click Next to launch.`,
+ html:`The APU <strong>OWP fires an OLR</strong> (Orbit-Launch Rocket) carrying a <strong>missile</strong> at a nearby hex. OLRs are free — each OWP, Space Station, and Shuttle carries an unlimited supply — but each launcher is capped at <strong>3 OLRs per turn</strong> (max 1 nuke). The missile sits in its target hex until Mine Combat, when it auto-fires. Click Next to launch.`,
  hl:['aOwp'],
  exec(eng,ui){
    eng.state.phase='LAUNCH_B'; eng.state.activePlayer=eng.state.playerB;
@@ -1045,7 +1045,7 @@ const TUT_STEPS = [
 // 8
 {title:'Phases 5 & 6 — Optional Movement',
  meta:'Turn 1 · Phases 5-6 of 9',
- html:`Each satellite may move up to its <strong>Movement Allowance (MA)</strong> in any direction. Moving one hex toward Earth is free — gravity assist. Units launched this turn cannot move. For this tutorial we skip movement and proceed to combat. In a real game, click any friendly unit and green hexes show valid destinations.`,
+ html:`Each satellite may move up to its <strong>Movement Allowance (MA)</strong> in any direction. Moving one hex toward Earth is free — gravity assist. Units launched this turn cannot move. In a real game, click any friendly unit and green hexes show valid destinations. If you move a unit and change your mind, the <strong>⟲ Undo Move</strong> button appears in the action bar to reverse it before advancing the phase.`,
  hl:[],
  exec(eng){
    eng.state.phase='MINE_CBT';
@@ -1062,7 +1062,7 @@ const TUT_STEPS = [
 // 10
 {title:'Phase 8 — Normal Combat',
  meta:'Turn 1 · Phase 8 of 9',
- html:`Both players attack simultaneously. <strong>USA HK-2</strong> is in the same hex as <strong>APU EWR "Spy"</strong>. ATK 4 vs DEF 1 = differential +3 → <em>Defender Eliminated</em>. USA earns <strong>3 VP</strong> for the kill. Each unit can only attack once per turn. The CRT table runs from −6 to +6: positive differentials favour the attacker.`,
+ html:`Both players attack simultaneously. <strong>USA HK-2</strong> is in the same hex as <strong>APU EWR "Spy"</strong>. ATK 4 vs DEF 1 = differential +3 → <em>Defender Eliminated</em>. USA earns <strong>3 VP</strong> for the kill. Each unit can only attack once per turn. <strong>Red-highlighted hexes</strong> show where attacks are available — click the hex then ⚔ Attack. CRT (Combat Results Table): −6 to −4=AE (Attacker Elim.), −3 to −2=AR (Attacker Retreats), −1 to 0=EX (Exchange), +1 to +2=DR (Defender Retreats), +3 to +6=DE (Defender Elim.).`,
  hl:['hk2','aEwr'],
  exec(eng,ui){
    eng.state.units.forEach(u=>u.attackedThisTurn=false);
@@ -1144,8 +1144,8 @@ const TUT_STEPS = [
 // 16
 {title:'Victory Points & Win Condition',
  meta:'Turn 2 · Scoring',
- html:`After scoring, check the VP delta in the top bar. Game ends when one side <strong>leads by 200 VP</strong> — passive scoring from EWRs and COMs accumulates quickly, so early positioning matters as much as direct combat.<br><br>
- You now know the core loop. <strong>Hit "Start Game"</strong> to play a real match, or "Easy Start" for a quick auto-setup.`,
+ html:`After scoring, check the VP delta in the top bar. Game ends when one side <strong>leads by 200 VP</strong> — passive scoring from EWRs and COMs (Communications Satellites) accumulates quickly, so early positioning matters as much as direct combat.<br><br>
+ You now know the core loop. Hit <strong>Total War</strong> on the welcome screen for a full match, or <strong>⚡ Easy Start</strong> for an instant auto-setup.`,
  hl:['ewr','aEwrS'],
  exec(eng){ eng.state.phase='SCORING'; eng._score(); eng._checkWin(); }},
 ];
@@ -4736,8 +4736,8 @@ class SpotlightTutorial {
 
     this.ui._updateUI();
     this.ren.render();
-    this.ui._setStatus('Tutorial complete — Normal Combat. Click any unit with ATK > 0 then click Attack.');
-    this.ui._toast('Your turn! Click a unit with ATK > 0 to attack.');
+    this.ui._setStatus('Tutorial complete — Normal Combat. Red hexes show attack opportunities. Click a unit with ATK > 0, then ⚔ Attack.');
+    this.ui._toast('Your turn! Red hexes = attack opportunities. Select a unit with ATK > 0.');
   }
 
   _go(n){
@@ -4865,29 +4865,29 @@ class SpotlightTutorial {
     return [
 
       T('ORBIT WAR',
-        `<b>Orbit War</b> is a two-player satellite warfare simulation. <b>USA</b> (red) vs <b>APU</b> (blue). Deploy satellites, fire missiles, and score <b>Victory Points</b> — lead by <b>200 VP</b> to win.`
+        `<b>Orbit War</b> is a two-player satellite warfare simulation. <b>USA</b> (red) vs <b>APU</b> — Asian-Polish Union — (blue). Deploy satellites, fire missiles, and score <b>Victory Points</b> — lead by <b>200 VP</b> to win.`
         + HINT(`This is a VP race, not a war of annihilation. You can win without destroying a single enemy unit — by keeping your scoring satellites in enemy territory long enough. Combat is attrition, not the goal.`)
         + `<em>This tutorial plays two live turns. Everything is real engine behavior. Click Next &#8594; at each step.</em>`,
         'full'),
 
       T('THE BOARD',
         `Earth is in the center. Dashed rings are <b>Orbit Lines 1–10</b> — inner rings move fast, outer rings barely creep. The colored wedges are <b>Spotting Cones</b>: <b>red = USA</b>, <b>blue = APU</b>.`
-        + HINT(`EWRs score <b>3 VP/turn</b> in the enemy cone. But a ring-4 EWR orbits out of the cone in ~4 turns (speed 2, cone spans ~1/3 of the ring). Park scoring units at rings 6–8 for a longer dwell time — the slow outer rings keep them in cone far longer.`),
+        + HINT(`EWRs (Early Warning Recon satellites) score <b>3 VP/turn</b> in the enemy cone. But a ring-4 EWR orbits out of the cone in ~4 turns (speed 2, cone spans ~1/3 of the ring). Park scoring units at rings 6–8 for a longer dwell time — the slow outer rings keep them in cone far longer.`),
         'board','right'),
 
       T('USA FORCES',
-        `<b>OWP</b> (ring 5, 3 missiles), <b>HK-1 &amp; HK-2</b> (fast attackers), <b>EWR</b> (ring 4, inside APU cone — watch the <span style="color:#00ff78">green dot</span> on the token), <b>Supply counter</b> (co-located with OWP).`
+        `<b>OWP</b> (Orbital Weapons Platform, ring 5, 3 missiles), <b>HK-1 &amp; HK-2</b> (Hunter-Killers, fast attackers), <b>EWR</b> (Early Warning Recon, ring 4, inside APU cone — watch the <span style="color:#00ff78">green dot</span> on the token), <b>Supply counter</b> (co-located with OWP).`
         + HINT(`Co-locate a Supply counter with your OWP from the start. OWPs burn through missiles fast. A resupply in the same hex doubles their operational life. Move them together each turn to keep them co-located.`),
         'board','right',['owp','hk1','hk2','ewr','sup']),
 
       T('APU FORCES',
-        `<b>OWP</b> (3 missiles + 1 nuke), <b>Mine</b> (shares a hex with HK-1 — will auto-fire this turn), <b>Spy EWR</b> (same hex as HK-2), <b>Scout EWR</b> (inside USA cone, scoring), <b>CJS jammer</b>.`
+        `<b>OWP</b> (3 missiles), <b>Mine</b> (shares a hex with HK-1 — will auto-fire this turn), <b>Spy EWR</b> (same hex as HK-2), <b>Scout EWR</b> (inside USA cone, scoring), <b>CJS</b> (Comm Jamming Satellite) jammer.`
         + HINT(`Mines are the cheapest killers in the game (0.5 pts, ATK 6). Mine(6) vs HK(3) = diff +3 = instant DE. Orbit mines into ring 1 early — retreating enemy units pile up there, and mines sweep through every turn. Mines can't fire on the turn placed (orange NEW badge).`),
         'board','right',['aOwp','aMine','aEwr','aEwrS','aCjs']),
 
       T('THE TURN SEQUENCE',
         `Nine phases per turn, fixed order. <b>Passive phases</b> (1, 2, 7, 9) fire automatically. <b>Active phases</b> (3–6, 8) wait for your input.`
-        + HINT(`Orbital movement happens <em>before</em> launches. Units arriving via ELR skip orbital movement that turn. This means your launch target should account for where the destination hex will be <em>after</em> the orbital sweep — plan one step ahead.`),
+        + HINT(`Orbital movement happens <em>before</em> launches. Units arriving via ELR (Earth-Launch Rocket) skip orbital movement that turn. This means your launch target should account for where the destination hex will be <em>after</em> the orbital sweep — plan one step ahead.`),
         'phase-tracker','bottom'),
 
       T('PHASE 2 — ORBITAL MOVEMENT',
@@ -4897,7 +4897,7 @@ class SpotlightTutorial {
         function(){ this.eng._orbMove(); }),
 
       T('PHASE 3 — ELR LAUNCH',
-        `USA launches a reserve HK via <b>ELR</b> — range rings 1–3, max 3 per turn. Cost: 0.5 pts per ELR. The new HK skips optional movement this turn.`
+        `USA launches a reserve HK via <b>ELR</b> (Earth-Launch Rocket) — range rings 1–3, max 3 per turn. Cost: 0.5 pts per ELR. The new HK skips optional movement this turn.`
         + HINT(`Don't land ELRs at ring 1 unless desperate — speed-4 traffic there is chaotic and units frequently end up retreating into the atmosphere. Ring 2 or 3 gives new arrivals room to maneuver and they can use the gravity assist to move inward for free next turn.`),
         'board','right',['earthHK'],
         function(){
@@ -4912,7 +4912,7 @@ class SpotlightTutorial {
         }),
 
       T('PHASE 4 — OLR LAUNCH',
-        `APU OWP fires an <b>OLR missile</b> — free, range 3, no per-turn limit. The missile sits in its target hex until Mine Combat fires it automatically.`
+        `APU OWP fires an <b>OLR</b> (Orbit-Launch Rocket) missile — free, range 3 hexes, max 3 per launcher per turn. The missile sits in its target hex until Mine Combat fires it automatically.`
         + HINT(`<b>Missiles almost never hit if aimed at the enemy's current position</b> — they move away in Optional Movement before Mine Combat fires. Instead, fire at: (1) <b>ring-1 hexes</b> where units can't retreat, (2) hexes <b>blocked by your own units</b> so the enemy can't escape, or (3) corridors the enemy must pass through. Treat missiles as area denial, not direct fire.`),
         'board','right',['aOwp'],
         function(){
@@ -4926,7 +4926,7 @@ class SpotlightTutorial {
         }),
 
       T('PHASES 5 &amp; 6 — OPTIONAL MOVEMENT',
-        `Each unit may move up to its MA. Moving <b>one hex toward Earth is free</b> (gravity assist). Launched units cannot move this turn.`
+        `Each unit may move up to its MA (Movement Allowance). Moving <b>one hex toward Earth is free</b> (gravity assist). Launched units cannot move this turn. If you move a unit and change your mind, the <b>⟲ Undo Move</b> button in the action bar reverses it before the phase ends.`
         + HINT(`Optional movement is your primary tactical tool: escape incoming missiles (move out of the target hex), enter the enemy cone with EWRs, set up HK intercepts, or move OWPs inward after firing. <b>After a combat retreat, immediately move outward</b> — units stuck at ring 1 get removed when they retreat again.`),
         'board','right',[],
         function(){
@@ -4943,7 +4943,7 @@ class SpotlightTutorial {
         }),
 
       T('PHASE 8 — NORMAL COMBAT',
-        `USA HK-2 (ATK 4) attacks APU Spy EWR (DEF 1). Diff +3 = <b>DE</b>. USA earns <b>3 VP</b> for the kill. CRT summary: +3=DE, +1/+2=DR, 0/-1=EX, -2/-3=AR, -4=AE.`
+        `USA HK-2 (ATK 4) attacks APU Spy EWR (DEF 1). Diff +3 = <b>DE</b> (Defender Eliminated). USA earns <b>3 VP</b> for the kill. <b>Red hexes</b> on the board show where attacks are available — click the hex, select your unit, then ⚔ Attack. Full CRT (Combat Results Table): −6 to −4=AE (Attacker Elim.), −3/−2=AR (Attacker Retreats), −1/0=EX (Exchange), +1/+2=DR (Defender Retreats), +3 to +6=DE (Defender Elim.).`
         + HINT(`HK(4) vs HK(3) = DR every time — the defender retreats, nobody dies. Don't waste HKs fighting HKs. HK vs EWR = DE + 3 VP — <b>hunt EWRs</b>. Each EWR you kill stops 3 VP/turn and gives you 3 VP immediately: a 6 VP/turn swing. That's the fastest path to a 200 VP lead.`),
         'board','right',['hk2','aEwr'],
         function(){
@@ -4954,7 +4954,7 @@ class SpotlightTutorial {
 
       T('PHASE 9 — SCORING',
         `VPs: <b>USA EWR</b> in APU cone = +3 VP. <b>APU Scout EWR</b> in USA cone = +3 VP. <b>EWR kill</b> = +3 VP. Watch the top bar — it shows the per-turn delta and gap-to-win percentage.`
-        + HINT(`Notice the <span style="color:#00ff78">green VP dot</span> on EWRs that are scoring, and the grey dot on ones that drifted out. A grey dot means "reposition this unit." <b>COM/CJS over friendly territory also score</b> (2 VP each) — don't forget to park them over your own side of the board too.`),
+        + HINT(`Notice the <span style="color:#00ff78">green VP dot</span> on EWRs that are scoring, and the grey dot on ones that drifted out. A grey dot means "reposition this unit." <b>COM (Communications Satellite)/CJS over friendly territory also score</b> (2 VP each) — don't forget to park them over your own side of the board too.`),
         'board','right',['ewr','aEwrS'],
         function(){
           this.eng.state.phase='SCORING'; this.eng.state.activePlayer=null;
@@ -4980,7 +4980,7 @@ class SpotlightTutorial {
         'board','right',['cjs','aCjs']),
 
       T('SUPPLY COUNTER',
-        `The gold octagonal token holds up to 10 weapons. During Optional Movement, any OWP, Shuttle, or SS in the <b>same hex</b> can click <b>&#9981; Resupply</b>. The resupplying unit cannot attack that turn.`
+        `The gold octagonal token holds up to 10 weapons. During Optional Movement, any OWP, Shuttle, or SS (Space Station) in the <b>same hex</b> can click <b>&#9981; Resupply</b>. The resupplying unit cannot attack that turn.`
         + HINT(`A Supply counter with your OWP is worth far more than its 1-pt cost. OWPs exhaust in 3–5 turns of aggressive firing. A resupply doubles that. Move the Supply counter with the OWP each turn to keep them together — they orbit at the same speed on the same ring so co-location is free to maintain.`),
         'sidebar','left',['owp','sup']),
 
