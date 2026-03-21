@@ -5864,9 +5864,20 @@ class AIPlayer {
       if(c.length)eng.bringInDeepSpace(u.id,c[0]);
     });
     eng.resetOLRCounters(side);
+    const myVP=eng.state.vp[side];
     const enemies=eng.state.units.filter(u=>u.side!==side&&!u.destroyed&&u.hex);
     eng.getOLRLaunchers(side).forEach(launcher=>{
       let fired=0;
+      // Nuke: evaluate first — only fire if VP can absorb the −10 penalty
+      // and a target hex scores positively after accounting for friendly fire.
+      if(fired<3&&launcher.weapons?.nukes>0&&myVP>=12){
+        const nukeHex=this._bestNukeTarget(launcher.hex,side);
+        if(nukeHex){
+          const r=eng.fireOLR(launcher.id,'NUKE',nukeHex);
+          if(r.ok)fired++;
+        }
+      }
+      // Missiles: fire at enemies, ring-1 denial, or closest target
       while(fired<3){
         const inRange=hexesInRange(launcher.hex,3).filter(h=>{
           const r=getRing(h);return r>=1&&r<=10&&(h.q!==launcher.hex.q||h.r!==launcher.hex.r);
@@ -5877,14 +5888,47 @@ class AIPlayer {
           :ring1.length?ring1[Math.floor(Math.random()*ring1.length)]
           :enemies.length?this._closest(launcher.hex,inRange):null;
         if(!dest)break;
-        const useNuke=fired===0&&launcher.weapons?.nukes>0&&Math.random()<0.25;
-        const payload=useNuke?'NUKE':'MISSILE';
-        if(useNuke&&!launcher.weapons.nukes)break;
-        if(!useNuke&&!launcher.weapons?.missiles)break;
-        const r=eng.fireOLR(launcher.id,payload,dest);
+        if(!launcher.weapons?.missiles)break;
+        const r=eng.fireOLR(launcher.id,'MISSILE',dest);
         if(r.ok)fired++;else break;
       }
     });
+  }
+
+  // Net VP score of a nuke blast centred on tgt from side's perspective.
+  // Always starts at −10 (nuke VP penalty). Each unit in blast radius 1
+  // is weighted by kill probability (crt diff) and its VP kill value.
+  _nukeBlastScore(tgt,side){
+    const eng=this.eng;
+    const vpKill={EWR:3,SHUTTLE:3,OWP:1,HK:1,SF:1,SS:1,COM:0,CJS:0,SUPPLY:0,MINE:0};
+    const blast=hexesInRange(tgt,1).filter(h=>getRing(h)>=1&&getRing(h)<=10);
+    let score=-10;
+    eng.state.units
+      .filter(u=>!u.destroyed&&u.hex&&u.typeId!=='NUKE'&&
+        blast.some(h=>h.q===u.hex.q&&h.r===u.hex.r))
+      .forEach(u=>{
+        const diff=5-(u.type?.def??0);
+        // Kill probability estimate from CRT: diff ≥3 → DE (1.0), 1–2 → DR (0.5), ≤0 → 0.1
+        const killP=diff>=3?1:diff>=1?0.5:0.1;
+        const vp=vpKill[u.typeId]??0;
+        if(u.side!==side) score+=vp*killP;        // enemy kill: gain VP
+        else              score-=(vp||1)*killP;    // friendly fire: lose VP
+      });
+    return score;
+  }
+
+  // Returns the best hex within OLR range 3 of launcherHex to fire a nuke,
+  // or null if no target yields a positive net score.
+  _bestNukeTarget(launcherHex,side){
+    const inRange=hexesInRange(launcherHex,3).filter(h=>{
+      const r=getRing(h);return r>=1&&r<=10&&(h.q!==launcherHex.q||h.r!==launcherHex.r);
+    });
+    let bestHex=null,bestScore=0;
+    for(const tgt of inRange){
+      const score=this._nukeBlastScore(tgt,side);
+      if(score>bestScore){bestScore=score;bestHex=tgt;}
+    }
+    return bestHex; // null if no profitable target found
   }
 
   _aiMove(side){
@@ -5918,6 +5962,21 @@ class AIPlayer {
         }
         if(dest)eng.moveUnit(u.id,dest);
       });
+
+    // Suicide nuke: an OWP with a nuke detonates if the blast is profitable
+    // enough to justify losing the OWP (−10 nuke VP + 1 VP opponent kill credit).
+    // Only trigger when VP is high enough to absorb the cost.
+    const myVP=eng.state.vp[side];
+    if(myVP>=12){
+      eng.state.units
+        .filter(u=>u.side===side&&!u.destroyed&&u.hex&&u.typeId==='OWP'&&
+          u.weapons?.nukes>0&&!u.moved)
+        .forEach(owp=>{
+          // _nukeBlastScore already deducts −10; subtract 1 more for OWP kill VP to opponent
+          const score=this._nukeBlastScore(owp.hex,side)-1;
+          if(score>3) eng.detonateSuicide(owp.id);
+        });
+    }
   }
 
   _aiCombat(side){
