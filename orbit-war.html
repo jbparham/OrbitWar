@@ -2765,86 +2765,132 @@ class Renderer {
     const sz=this.sz;
     ctx.save();
 
-    // ── Phase 1 (t 0–0.25): white-hot flash bleeding into green ─
+    // Aurora color helper — cycles through green→teal→cyan→violet→magenta
+    // hue: 0=green(135°) → 1=magenta(300°), s/l in 0–100
+    const aHSL=(hue,s,l,a)=>`hsla(${135+hue*165},${s}%,${l}%,${a})`;
+    // Per-hex aurora hue offset — each adjacent hex gets a slightly different tint
+    const hexHue=(bh)=>{
+      const angle=Math.atan2(bh.r-hex.r,bh.q-hex.q);
+      return((angle/(Math.PI*2))+1)%1; // 0–1 around the ring
+    };
+
+    // ── Phase 1 (t 0–0.25): white core bleeding into aurora ────
     if(t<0.25){
       const p=t/0.25;
       const r=sz*(1.2+p*5);
       const a=p<0.4?p/0.4:1-(p-0.4)/0.6;
       const g=ctx.createRadialGradient(cp.x,cp.y,0,cp.x,cp.y,r);
       g.addColorStop(0,   `rgba(255,255,255,${a})`);
-      g.addColorStop(0.2, `rgba(200,255,180,${a*.95})`);
-      g.addColorStop(0.55,`rgba(0,255,100,${a*.75})`);
-      g.addColorStop(0.8, `rgba(0,180,40,${a*.4})`);
+      g.addColorStop(0.15,`rgba(180,255,220,${a*.95})`);   // pale mint
+      g.addColorStop(0.4, aHSL(0.1,100,65,a*.85));          // bright green
+      g.addColorStop(0.65,aHSL(0.45,100,55,a*.55));         // cyan-teal
+      g.addColorStop(0.85,aHSL(0.8,100,45,a*.25));          // violet edge
       g.addColorStop(1,   `rgba(0,0,0,0)`);
       ctx.fillStyle=g;
       ctx.beginPath();ctx.arc(cp.x,cp.y,r,0,Math.PI*2);ctx.fill();
     }
 
-    // ── Expanding shockwave rings (t 0.05–0.65) in toxic green ─
+    // ── Expanding shockwave rings — aurora bands ────────────────
     if(t>0.05&&t<0.65){
       const p=(t-0.05)/0.6;
       const maxR=sz*5.5;
       const r=p*maxR;
       const a=(1-p)*0.9;
       const lw=sz*(0.5-p*0.35);
+      // Outer ring: green→teal shift over time
       ctx.beginPath();ctx.arc(cp.x,cp.y,r,0,Math.PI*2);
-      ctx.strokeStyle=`rgba(80,255,120,${a})`;
+      ctx.strokeStyle=aHSL(p*0.4,100,65,a);
       ctx.lineWidth=Math.max(1,lw);ctx.stroke();
+      // Inner ring: teal→violet
       if(r>sz*0.8){
         ctx.beginPath();ctx.arc(cp.x,cp.y,r*0.65,0,Math.PI*2);
-        ctx.strokeStyle=`rgba(0,200,60,${a*0.6})`;
+        ctx.strokeStyle=aHSL(0.3+p*0.5,100,60,a*0.65);
         ctx.lineWidth=Math.max(1,lw*0.5);ctx.stroke();
       }
-      // Second trailing ring
+      // Trailing ring: magenta-violet
       const r2=(p-0.08)*maxR;
       if(r2>0){
         ctx.beginPath();ctx.arc(cp.x,cp.y,r2,0,Math.PI*2);
-        ctx.strokeStyle=`rgba(160,255,80,${a*0.4})`;
+        ctx.strokeStyle=aHSL(0.7+p*0.3,100,55,a*0.45);
         ctx.lineWidth=Math.max(1,lw*0.3);ctx.stroke();
+      }
+      // Second fast trailing ring: pink/magenta
+      const r3=(p-0.18)*maxR;
+      if(r3>0){
+        ctx.beginPath();ctx.arc(cp.x,cp.y,r3,0,Math.PI*2);
+        ctx.strokeStyle=aHSL(1.0,100,70,a*0.25);
+        ctx.lineWidth=Math.max(1,lw*0.2);ctx.stroke();
       }
     }
 
-    // ── Blast hex glow — sickly green radiation (t 0.12–1.0) ──
+    // ── Blast hex glow — each hex its own aurora hue ────────────
     if(t>0.12){
       blastHexes.forEach(bh=>{
         const isCenter=bh.q===hex.q&&bh.r===hex.r;
-        const delay=isCenter?0:0.08;
+        const delay=isCenter?0:0.07;
         const tp=Math.max(0,(t-0.12-delay)/0.25);
         if(tp<=0)return;
-        const fadeStart=0.55, fade=t>fadeStart?(1-(t-fadeStart)/(1-fadeStart)):1;
+        const fadeStart=0.5, fade=t>fadeStart?(1-(t-fadeStart)/(1-fadeStart)):1;
         const intensity=Math.min(tp*3,1)*fade;
-        const fill=isCenter
-          ?`rgba(0,220,80,${intensity*0.55})`
-          :`rgba(60,255,100,${intensity*0.3})`;
-        const stroke=isCenter
-          ?`rgba(100,255,120,${intensity})`
-          :`rgba(80,255,80,${intensity*0.65})`;
+        // Center pulses green→teal; outer hexes each have aurora hue by position
+        const hue=isCenter?(t*0.35):(hexHue(bh)*0.9+t*0.2)%1;
+        // Slow shimmer: hue drifts slightly over time
+        const shimmer=Math.sin(t*Math.PI*6+hexHue(bh)*Math.PI*4)*0.08;
+        const h=Math.min(1,Math.max(0,hue+shimmer));
+        const fill=aHSL(h,100,50,intensity*(isCenter?0.55:0.32));
+        const stroke=aHSL(h,100,72,intensity*(isCenter?1:0.7));
         this._hlHex(bh,fill,stroke,isCenter?3:1.5);
       });
     }
 
-    // ── ☢ symbol (t 0.08–0.88) in radioactive green ───────────
+    // ── Aurora curtain streaks radiating from center ─────────────
+    if(t>0.15&&t<0.75){
+      const p=(t-0.15)/0.6;
+      const numRays=12;
+      const maxLen=sz*(2.5+p*2);
+      ctx.save();
+      for(let i=0;i<numRays;i++){
+        const angle=(i/numRays)*Math.PI*2+t*0.8;
+        const hue=(i/numRays+t*0.25)%1;
+        const rayA=(1-p)*0.18*Math.max(0,Math.sin(t*Math.PI*3+i));
+        if(rayA<0.01)continue;
+        const x2=cp.x+Math.cos(angle)*maxLen;
+        const y2=cp.y+Math.sin(angle)*maxLen;
+        const rg=ctx.createLinearGradient(cp.x,cp.y,x2,y2);
+        rg.addColorStop(0,aHSL(hue,100,65,rayA*1.2));
+        rg.addColorStop(0.5,aHSL((hue+0.2)%1,100,60,rayA));
+        rg.addColorStop(1,`rgba(0,0,0,0)`);
+        ctx.strokeStyle=rg;
+        ctx.lineWidth=Math.max(1,sz*0.15*(1-p));
+        ctx.beginPath();ctx.moveTo(cp.x,cp.y);ctx.lineTo(x2,y2);ctx.stroke();
+      }
+      ctx.restore();
+    }
+
+    // ── ☢ symbol — shifting aurora hue ─────────────────────────
     if(t>0.08&&t<0.88){
       const a=t<0.22?(t-0.08)/0.14:t>0.72?1-(t-0.72)/0.16:1;
       const pulse=1+0.12*Math.sin(t*Math.PI*12);
       const fs=Math.max(14,sz*1.5)*pulse;
+      const symHue=(t*0.6)%1; // slowly cycles through aurora colors
       ctx.font=`bold ${fs}px monospace`;
       ctx.textAlign='center';ctx.textBaseline='middle';
       ctx.lineWidth=4;ctx.strokeStyle=`rgba(0,0,0,${a*0.8})`;
       ctx.strokeText('☢',cp.x,cp.y);
-      ctx.fillStyle=`rgba(160,255,100,${a})`;
+      ctx.fillStyle=aHSL(symHue,100,72,a);
       ctx.fillText('☢',cp.x,cp.y);
     }
 
-    // ── Radioactive green haze fadeout (t 0.6–1.0) ────────────
+    // ── Aurora veil fadeout (t 0.6–1.0) — violet-magenta haze ──
     if(t>0.6){
       const p=(t-0.6)/0.4;
-      const a=(1-p)*0.32;
-      const r=sz*(2+p*2);
-      const g=ctx.createRadialGradient(cp.x,cp.y,sz*0.5,cp.x,cp.y,r);
-      g.addColorStop(0,`rgba(0,120,40,${a})`);
-      g.addColorStop(0.5,`rgba(20,80,20,${a*0.6})`);
-      g.addColorStop(1,`rgba(0,0,0,0)`);
+      const a=(1-p)*0.35;
+      const r=sz*(2+p*2.5);
+      const g=ctx.createRadialGradient(cp.x,cp.y,sz*0.3,cp.x,cp.y,r);
+      g.addColorStop(0,  aHSL(0.6,100,40,a));    // deep cyan-violet center
+      g.addColorStop(0.4,aHSL(0.85,100,35,a*.7)); // violet
+      g.addColorStop(0.75,aHSL(1.0,80,30,a*.4));  // magenta edge
+      g.addColorStop(1,  `rgba(0,0,0,0)`);
       ctx.fillStyle=g;
       ctx.beginPath();ctx.arc(cp.x,cp.y,r,0,Math.PI*2);ctx.fill();
     }
