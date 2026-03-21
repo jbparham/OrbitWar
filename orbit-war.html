@@ -5451,6 +5451,12 @@ class SpotlightTutorial {
         + HINT(`Mines are the cheapest killers in the game (0.5 pts, ATK 6). Mine(6) vs HK(3) = diff +3 = instant DE. Orbit mines into ring 1 early — retreating enemy units pile up there, and mines sweep through every turn. Mines can't fire on the turn placed (orange NEW badge).`),
         'board','right',['aOwp','aMine','aEwr','aEwrS','aCjs']),
 
+      T('SETUP — PLACING YOUR FORCES',
+        `Before turn 1 both players alternate placing units on any orbit ring. The board shows <b>R1–R10</b> ring labels during placement — gold labels for rings 1–3 (the <b>ELR launch zone</b>, reachable from Earth), teal for rings 4–10. The status bar shows your progress: <em>USA — Place: OWP · 1/8</em>.`
+        + HINT(`Placement is your biggest strategic lever. EWRs should start at rings 6–8 (slow drift, long cone dwell). OWPs at ring 4–5 so they can fire inward and resupply easily. HKs at ring 3–4 for fast response. Never start units at ring 1 — speed-4 traffic makes them chaotic to control.`)
+        + `<em>Deep-space units (if any) enter the board at ring 10 during the Launch phase instead of from Earth.</em>`,
+        'board','right'),
+
       T('THE TURN SEQUENCE',
         `Nine phases per turn, fixed order. <b>Passive phases</b> (1, 2, 7, 9) fire automatically. <b>Active phases</b> (3–6, 8) wait for your input.`
         + HINT(`Orbital movement happens <em>before</em> launches. Units arriving via ELR (Earth-Launch Rocket) skip orbital movement that turn. This means your launch target should account for where the destination hex will be <em>after</em> the orbital sweep — plan one step ahead.`),
@@ -5478,7 +5484,7 @@ class SpotlightTutorial {
         }),
 
       T('PHASE 4 — OLR LAUNCH',
-        `APU OWP fires an <b>OLR</b> (Orbit-Launch Rocket) missile — free, range 3 hexes, max 3 per launcher per turn. The missile sits in its target hex until Mine Combat fires it automatically.`
+        `APU OWP fires an <b>OLR</b> (Orbit-Launch Rocket) missile — free, range 3 hexes, max 3 per launcher per turn. The missile sits in its target hex until Mine Combat fires it automatically. During launch phases, every unit that can fire shows a bright orange <b>OLR</b> badge — click it to open the fire menu.`
         + HINT(`<b>Missiles almost never hit if aimed at the enemy's current position</b> — they move away in Optional Movement before Mine Combat fires. Instead, fire at: (1) <b>ring-1 hexes</b> where units can't retreat, (2) hexes <b>blocked by your own units</b> so the enemy can't escape, or (3) corridors the enemy must pass through. Treat missiles as area denial, not direct fire.`),
         'board','right',['aOwp'],
         function(){
@@ -5491,8 +5497,13 @@ class SpotlightTutorial {
           }
         }),
 
+      T('NUKES — HIGH RISK, HIGH IMPACT',
+        `OWPs that carry <b>nukes</b> fire them just like missiles via OLR (range 3, ATK 5). The difference: if a nuke eliminates the defender, the <b>attacker loses 10 VP</b> (§18). A nuke detonation is also visible in the game log. OWPs can also <b>suicide-detonate</b> their nuke (§18): the OWP is eliminated but so is every enemy unit in the same hex.`
+        + HINT(`The −10 VP nuke penalty often wipes out 3–4 turns of scoring gains. Save nukes for Space Stations (SS, worth 5 VP to kill) or as a last-resort suicide detonation when an OWP is surrounded and about to be destroyed anyway. Against low-value targets, a regular missile is almost always better.`),
+        'full'),
+
       T('PHASES 5 &amp; 6 — OPTIONAL MOVEMENT',
-        `Each unit may move up to its MA (Movement Allowance). Moving <b>one hex toward Earth is free</b> (gravity assist). Launched units cannot move this turn. If you move a unit and change your mind, the <b>⟲ Undo Move</b> button in the action bar reverses it before the phase ends.`
+        `Each unit may move up to its MA (Movement Allowance). Moving <b>one hex toward Earth is free</b> (gravity assist). Launched units cannot move this turn. If you move a unit and change your mind, the <b>⟲ Undo Move</b> button in the action bar reverses it before the phase ends. A <b>⛽</b> badge appears on any OWP, Shuttle, or Space Station sharing a hex with a Supply counter — a visual reminder that resupply is available if you click the unit.`
         + HINT(`Optional movement is your primary tactical tool: escape incoming missiles (move out of the target hex), enter the enemy cone with EWRs, set up HK intercepts, or move OWPs inward after firing. <b>After a combat retreat, immediately move outward</b> — units stuck at ring 1 get removed when they retreat again.`),
         'board','right',[],
         function(){
@@ -5509,7 +5520,7 @@ class SpotlightTutorial {
         }),
 
       T('PHASE 8 — NORMAL COMBAT',
-        `USA HK-2 (ATK 4) attacks APU Spy EWR (DEF 1). Diff +3 = <b>DE</b> (Defender Eliminated). USA earns <b>3 VP</b> for the kill. <b>Red hexes</b> on the board show where attacks are available — click the hex, select your unit, then ⚔ Attack. Full CRT (Combat Results Table): −6 to −4=AE (Attacker Elim.), −3/−2=AR (Attacker Retreats), −1/0=EX (Exchange), +1/+2=DR (Defender Retreats), +3 to +6=DE (Defender Elim.).`
+        `USA HK-2 (ATK 4) attacks APU Spy EWR (DEF 1). Diff +3 = <b>DE</b> (Defender Eliminated). USA earns <b>3 VP</b> for the kill. <b>Red hexes</b> on the board show where attacks are available. <b>Shortcut:</b> clicking a red hex when only one side has a ready attacker automatically opens the attack dialog — no need to select your unit first. Full CRT (Combat Results Table): −6 to −4=AE (Attacker Elim.), −3/−2=AR (Attacker Retreats), −1/0=EX (Exchange — both sides take one hit), +1/+2=DR (Defender Retreats), +3 to +6=DE (Defender Elim.).`
         + HINT(`HK(4) vs HK(3) = DR every time — the defender retreats, nobody dies. Don't waste HKs fighting HKs. HK vs EWR = DE + 3 VP — <b>hunt EWRs</b>. Each EWR you kill stops 3 VP/turn and gives you 3 VP immediately: a 6 VP/turn swing. That's the fastest path to a 200 VP lead.`),
         'board','right',['hk2','aEwr'],
         function(){
@@ -5519,7 +5530,7 @@ class SpotlightTutorial {
         }),
 
       T('PHASE 9 — SCORING',
-        `VPs: <b>USA EWR</b> in APU cone = +3 VP. <b>APU Scout EWR</b> in USA cone = +3 VP. <b>EWR kill</b> = +3 VP. Watch the top bar — it shows the per-turn delta and gap-to-win percentage.`
+        `VPs: <b>USA EWR</b> in APU cone = +3 VP. <b>APU Scout EWR</b> in USA cone = +3 VP. <b>EWR kill</b> = +3 VP. Watch the top bar — it shows the per-turn delta and gap-to-win percentage. Click any EWR to see its <b>scoring cone</b> drawn as a dashed outline — <span style="color:#00ff78">green</span> if scoring, <span style="color:#ffc840">gold</span> with a "Move here" label if it needs to reposition.`
         + HINT(`Notice the <span style="color:#00ff78">green VP dot</span> on EWRs that are scoring, and the grey dot on ones that drifted out. A grey dot means "reposition this unit." <b>COM (Communications Satellite)/CJS over friendly territory also score</b> (2 VP each) — don't forget to park them over your own side of the board too.`),
         'board','right',['ewr','aEwrS'],
         function(){
@@ -5574,6 +5585,12 @@ class SpotlightTutorial {
           this.eng._cjsJamMissiles(); this.eng._mineCombat();
           this.eng.state.units.forEach(u=>u.attackedThisTurn=false);
         }),
+
+      T('AI OPPONENT &amp; SAVING',
+        `Both sides have an <b>AI toggle</b> in the top bar (👤 USA / 👤 APU). Enable one or both to let the computer play that side. A <b>5-second countdown</b> appears before each AI phase — click <b>✋ Take Control</b> at any time to cancel and play the phase yourself. When both sides are AI, the whole game runs automatically.`
+        + `<br><br>Games are <b>auto-saved</b> to your browser after every phase. The welcome screen has a <em>Resume</em> button if you close the tab mid-game.`
+        + HINT(`Playing computer vs. computer is a great way to study strategy — watch how the AI positions EWRs into the enemy cone and hunts with HKs, then adapt those patterns to your own games.`),
+        'full'),
 
       T('READY TO PLAY — STRATEGIC PRIORITIES',
         `Core loop: <b>Orbit &#8594; Launch &#8594; Move &#8594; Mines/Missiles fire &#8594; Combat &#8594; Score &#8594; repeat</b>.`
