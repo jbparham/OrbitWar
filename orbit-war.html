@@ -723,6 +723,18 @@ body{background:var(--bg);color:var(--text);font-family:var(--ui);font-size:13px
 //   Boot                      (DOMContentLoaded wiring)
 // ════════════════════════════════════════════════════════════
 
+// ─── Seeded RNG (mulberry32) ─────────────────────────────────
+// Used by Demo autoplay so the showcase game is always identical.
+function mulberry32(seed){
+  return function(){
+    seed|=0; seed=seed+0x6D2B79F5|0;
+    let t=Math.imul(seed^seed>>>15,1|seed);
+    t=t+Math.imul(t^t>>>7,61|t)^t;
+    return((t^t>>>14)>>>0)/4294967296;
+  };
+}
+const DEMO_SEED=3006; // Tournament winner: 6 lead changes, nuke on turn 3, 56 units destroyed
+
 // ─── Precomputed math constants ──────────────────────────────
 Math.SQRT3   = Math.sqrt(3);
 Math.SQRT3_2 = Math.sqrt(3)/2;
@@ -1726,18 +1738,21 @@ class Engine {
   }
 
   _mineCombat(){
-    // Nukes placed by OLR auto-detonate (§19): ATK 5 vs all enemies in hex, costs owner 10VP
+    // Nukes placed by OLR auto-detonate: ATK 5 blast radius 1 — hits ALL units (friend & foe)
+    // within 1 hex of detonation point. Owner loses 10VP regardless.
     this.state.units.filter(u=>u.typeId==='NUKE'&&!u.destroyed&&u.hex).forEach(nuke=>{
       if(nuke.destroyed||!nuke.hex)return; // guard: may have been destroyed earlier this pass
-      const targets=this.state.units.filter(e=>!e.destroyed&&e.hex&&e.side!==nuke.side&&
-        e.hex.q===nuke.hex.q&&e.hex.r===nuke.hex.r);
-      this._log(`${nuke.side.toUpperCase()} NUKE detonates at ring ${getRing(nuke.hex)}! Owner −10VP`);
+      const blastHexes=hexesInRange(nuke.hex,1).filter(h=>getRing(h)>=1&&getRing(h)<=10);
+      const targets=this.state.units.filter(e=>
+        !e.destroyed&&e.hex&&e.id!==nuke.id&&e.typeId!=='NUKE'&&
+        blastHexes.some(h=>h.q===e.hex.q&&h.r===e.hex.r));
+      this._log(`${nuke.side.toUpperCase()} NUKE detonates at ring ${getRing(nuke.hex)}! Blast radius 1 — ${targets.length} unit(s) in range — owner −10VP`);
       this.state.vp[nuke.side]=Math.max(0,this.state.vp[nuke.side]-10);
-      targets.forEach(enemy=>{
-        if(enemy.destroyed)return; // guard: enemy may have been destroyed by earlier nuke this pass
-        const res=crt(5,this._effDef(enemy));
-        this._log(`Nuke vs ${enemy.type.short}: ${res}`);
-        this._applyResult(res,nuke,enemy);
+      targets.forEach(t=>{
+        if(t.destroyed)return; // guard: may have been destroyed earlier in this blast
+        const res=crt(5,this._effDef(t));
+        this._log(`Nuke blast vs ${t.side.toUpperCase()} ${t.type.short}: ${res}`);
+        this._applyResult(res,nuke,t);
       });
       nuke.destroyed=true; nuke.hex=null;
     });
@@ -1866,13 +1881,15 @@ class Engine {
   detonateSuicide(uid){
     const u=this._get(uid); if(!u||!u.suicide)return{ok:false};
     const opp=u.side==='usa'?'apu':'usa';
-    this._log(`${u.side.toUpperCase()} ${u.type.short} SUICIDE DETONATION at ring ${getRing(u.hex)}! (ATK 5 vs all, owner −10VP)`);
-    // §18: costs 10VP and hits ALL units in hex — friendly and enemy
+    this._log(`${u.side.toUpperCase()} ${u.type.short} SUICIDE DETONATION at ring ${getRing(u.hex)}! ATK 5 blast radius 1 — friendly fire — owner −10VP`);
+    // §18: costs 10VP and hits ALL units (friend & foe) within blast radius 1
     this.state.vp[u.side]=Math.max(0,this.state.vp[u.side]-10);
-    this.state.units.filter(x=>!x.destroyed&&x.hex&&x.hex.q===u.hex.q&&x.hex.r===u.hex.r&&x.id!==uid)
+    const blastHexes=hexesInRange(u.hex,1).filter(h=>getRing(h)>=1&&getRing(h)<=10);
+    this.state.units.filter(x=>!x.destroyed&&x.hex&&x.id!==uid&&
+      blastHexes.some(h=>h.q===x.hex.q&&h.r===x.hex.r))
       .forEach(t=>{
         const res=crt(5,this._effDef(t));
-        this._log(`Suicide vs ${t.side.toUpperCase()} ${t.type.short}: ${res}`);
+        this._log(`Suicide blast vs ${t.side.toUpperCase()} ${t.type.short}: ${res}`);
         this._applyResult(res,u,t);
       });
     // Attacker is always destroyed — opponent scores VP for the kill
@@ -4307,7 +4324,7 @@ class UI {
       <div class="up-stats">ATK:${u.type.atk} DEF:${u.type.def}${defNote} MOV:${u.type.mov} Ring:${u.hex?getRing(u.hex):'?'}</div>
       ${w?`<div class="up-wep">Mines:${w.mines||0} Msls:${w.missiles||0} Nukes:${w.nukes||0}</div>`:''}
       ${sfLine}${movedNote}${moveHint}${attackedNote}${owpBlock}${resuppliedNote}
-      ${u.suicide?'<div style="color:var(--danger);font-family:var(--mono);font-size:10px">☢ SUICIDE NUKE — costs 10VP + kills self</div>':''}
+      ${u.suicide?'<div style="color:var(--danger);font-family:var(--mono);font-size:10px">☢ SUICIDE NUKE — ATK 5 blast radius 1, costs 10VP + kills self</div>':''}
       <div class="up-acts">
         ${canAttack?`<button class="btn-sm" id="btn-atk">⚔ Attack</button>`:''}
         ${u.suicide&&!u.attackedThisTurn?`<button class="btn-d" id="btn-det">☢ Detonate</button>`:''}
@@ -4321,7 +4338,7 @@ class UI {
       this._updateActionBar();
     });
     document.getElementById('btn-det')?.addEventListener('click',()=>{
-      if(confirm('Detonate suicide nuke? Attacks ALL units in hex including friendlies.')){
+      if(confirm('Detonate suicide nuke? ATK 5 hits ALL units within 1 hex — including friendlies. Owner loses 10VP.')){
         this.eng.detonateSuicide(u.id);
         this._hideUnitPanel(); this.sel=null; this.ren.setSelected(null);
       }
@@ -5497,9 +5514,9 @@ class SpotlightTutorial {
           }
         }),
 
-      T('NUKES — HIGH RISK, HIGH IMPACT',
-        `OWPs that carry <b>nukes</b> fire them just like missiles via OLR (range 3, ATK 5). The difference: if a nuke eliminates the defender, the <b>attacker loses 10 VP</b> (§18). A nuke detonation is also visible in the game log. OWPs can also <b>suicide-detonate</b> their nuke (§18): the OWP is eliminated but so is every enemy unit in the same hex.`
-        + HINT(`The −10 VP nuke penalty often wipes out 3–4 turns of scoring gains. Save nukes for Space Stations (SS, worth 5 VP to kill) or as a last-resort suicide detonation when an OWP is surrounded and about to be destroyed anyway. Against low-value targets, a regular missile is almost always better.`),
+      T('NUKES — AREA BLAST, HIGH RISK',
+        `OWPs that carry <b>nukes</b> fire them via OLR (range 3, ATK 5). Unlike missiles, a nuke has a <b>blast radius of 1 hex</b> — it combats <em>every unit</em> (friend and foe) in the target hex and all 6 adjacent hexes. The owner always loses <b>10 VP</b>. OWPs marked ☢ can also <b>suicide-detonate</b> during Optional Movement: ATK 5 blast radius 1 kills everything nearby — including the OWP itself.`
+        + HINT(`The blast radius makes nukes powerful against <b>clustered units</b> — a ring-1 pile-up is an ideal target. But the −10 VP penalty and friendly-fire risk demand careful aim. Never fire a nuke when your own units are adjacent to the target. Save nukes for clearing a packed hex or as a last-resort suicide detonation when surrounded.`),
         'full'),
 
       T('PHASES 5 &amp; 6 — OPTIONAL MOVEMENT',
@@ -5732,6 +5749,9 @@ class Demo {
   // ── Entry point ─────────────────────────────────────────────
   start(){
     this._active = true;
+    // Seed Math.random so the demo game is always the same (tournament seed 3006)
+    this._origRandom = Math.random;
+    Math.random = mulberry32(DEMO_SEED);
     this._setupBoard();
     this.ui._show('scr-game');
     document.getElementById('demo-bar').classList.add('active');
@@ -5747,6 +5767,8 @@ class Demo {
   _exit(){
     this._active = false;
     clearTimeout(this._timer);
+    // Restore native Math.random so player games aren't seeded
+    if(this._origRandom){ Math.random=this._origRandom; this._origRandom=null; }
     document.getElementById('demo-bar').classList.remove('active');
     this.ui._show('scr-welcome');
   }
@@ -5946,44 +5968,93 @@ class Demo {
     const usa=s.vp.usa, apu=s.vp.apu;
     const delta=usa-apu;
     const scoreStr=`<span class="usa">USA ${usa}VP</span> vs <span class="apu">APU ${apu}VP</span>`;
-    const lead=delta>0?`<span class="usa">USA leads +${delta}</span>`:delta<0?`<span class="apu">APU leads +${Math.abs(delta)}</span>`:`<b>Tied — deadlock!</b>`;
+    const lead=delta>0?`<span class="usa">USA leads +${delta}</span>`:delta<0?`<span class="apu">APU leads +${Math.abs(delta)}</span>`:`<b>Tied \u2014 deadlock!</b>`;
     const alive={
       usa: s.units.filter(u=>u.side==='usa'&&!u.destroyed&&u.hex).length,
       apu: s.units.filter(u=>u.side==='apu'&&!u.destroyed&&u.hex).length,
     };
     const t=s.turn;
 
+    // \u2500\u2500 Seed-3006 per-turn dramatic narrative \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+    const SCRIPT={
+      1:`\ud83d\udef0 <b>Deployment complete \u2014 war begins.</b> Both fleets are in orbit, Earth reserves on standby. An APU mine drifts immediately into the USA formation \u2014 the supply depot takes the first hit before both sides have even fully deployed. <em>No retreating now.</em>`,
+      2:`<b>Turn 2 \u2014 the shooting war opens.</b> USA missiles tear open an APU OWP; APU responds in kind. Both sides lose a weapons platform in the same exchange. A Hunter-Killer burns up on re-entry. The score stays close \u2014 but attrition has begun.`,
+      3:`\u2622 <b>Turn 3 \u2014 the decision that shapes the entire war.</b> APU has a nuclear warhead loaded and the USA Space Station sits exposed at ring 4, worth 10VP. APU fires. <em>Watch what happens next.</em>`,
+      4:`\ud83d\udd04 <b>LEAD CHANGE \u2014 USA surges back.</b> The nuke backfired catastrophically \u2014 APU lost five of its own units in the blast. USA capitalizes: four EWRs flood the APU cone simultaneously. ${scoreStr}. One point separates the fleets.`,
+      5:`\ud83d\udd04 <b>LEAD CHANGE \u2014 APU inches ahead.</b> APU's OWPs are still firing. Three more HKs burn up in the inner rings \u2014 the orbital highway to Earth is littered with wreckage. APU claws back to a 3-point lead.`,
+      6:`\ud83c\udf0d <b>EARTH ROTATES \u2014 LEAD CHANGE!</b> The scoring cones sweep 60\u00b0 and suddenly four USA EWRs are inside the APU spotting zone simultaneously. USA's best turn yet: +20VP in a single phase. ${scoreStr}.`,
+      7:`\ud83d\udd04 <b>LEAD CHANGE \u2014 APU responds.</b> APU's last active HK tracks a USA communications satellite and destroys it. The score inverts for the fifth time. ${scoreStr}.`,
+      8:`<b>Turn 8 \u2014 a brief ceasefire of attrition.</b> No kills. Both fleets are battered but still scoring. The outer rings are dense with EWRs and COMs circling for position. APU's lead is thin \u2014 5 points.`,
+      9:`\ud83c\udf0d <b>Earth rotates.</b> APU's cone sweeps deeper into USA territory. APU scores 18VP this turn to USA's 7. The gap is opening. ${scoreStr}.`,
+      10:`<b>Turn 10 \u2014 the VP machinery grinds.</b> No combat. Both fleets score heavily from the outer rings. APU +20, USA +18. The orbital empire is built satellite by satellite.`,
+      11:`<b>The gap widens.</b> Four APU COMs and EWRs score simultaneously. USA can't match the coverage. ${scoreStr} \u2014 the lead is stretching.`,
+      12:`\ud83d\udca3 <b>Turn 12 \u2014 the mine massacre.</b> Five USA Hunter-Killers orbit into APU mine fields in a single pass. Five simultaneous Defender Eliminated results. USA's entire attack force is obliterated in one turn.`,
+      13:`\ud83c\udfaf <b>The hunt begins.</b> Earth rotates. APU's surviving HK locks onto a USA EWR \u2014 the first of four consecutive kills that will dismantle USA's scoring apparatus one satellite at a time.`,
+      14:`\ud83c\udfaf <b>The hunt continues.</b> A second USA EWR eliminated. USA's scoring web is unravelling with no HKs left to protect it. ${scoreStr}.`,
+      15:`\ud83c\udfaf <b>Three for three.</b> APU's lone HK strikes again. A third consecutive EWR kill. USA scoring collapses to near-zero. APU crosses 200VP for the first time.`,
+      16:`\ud83c\udfaf <b>Four consecutive EWR kills.</b> USA's last scoring satellite eliminated. The VP race is over \u2014 it's now just a question of margin. ${scoreStr}.`,
+      17:`\ud83d\udce1 <b>USA goes dark.</b> Zero scoring units remain in the cones. APU accumulates unopposed. USA's 172VP sit frozen as APU's counter climbs.`,
+      18:`<b>The last USA signal fades.</b> A final COM satellite decays into the atmosphere \u2014 one last 2-VP pulse, then silence. USA frozen at 172.`,
+      19:`<b>Silence from the USA sector.</b> APU's EWRs, COMs, and CJS satellites orbit in formation, racking up points uncontested. ${scoreStr}.`,
+      20:`<b>APU's orbital empire runs like clockwork.</b> CJS jams phantom missiles. EWRs score. COMs transmit. USA watches from the ground. ${scoreStr}.`,
+      21:`\ud83c\udf0d <b>Final earth rotation.</b> APU cones sweep the last corner of USA territory. ${scoreStr} \u2014 the 200-point gap is within reach.`,
+      22:`<b>The end is near.</b> APU scores 22VP: four EWRs, one CJS, four COMs all in scoring position simultaneously. ${scoreStr}.`,
+      23:`<b>Unstoppable.</b> APU's orbital formation is perfect \u2014 EWRs in the cone, COMs over territory, CJS jamming interference. ${scoreStr}.`,
+      24:`<b>Dominant orbit.</b> ${scoreStr}. The 200-point gap will breach within 2 turns.`,
+      25:`\ud83c\udf0d <b>Earth's final rotation.</b> APU loses a touch of cone coverage but still scores heavily. ${scoreStr} \u2014 approaching the 200-point margin.`,
+      26:`<b>One turn away.</b> APU CJS jams one stray missile. EWRs and COMs push the gap to 192. The finish line is visible.`,
+      27:`\ud83c\udfc6 <b>APU wins \u2014 200VP supremacy achieved.</b> The war's defining moment was Turn 3: a nuke that cost APU five of its own units \u2014 but killed the USA Space Station and broke the strategic balance for good. APU wins ${apu}\u2013${usa}.`,
+    };
+
     switch(phase){
       case 'TURN_TRACK': {
-        // Summarise the turn that just ended (turn t-1)
-        let note='';
-        if(this._leadJustChanged){
-          note=`🔄 <b>LEAD CHANGE! ${delta>0?'USA':'APU'} takes the lead!</b> `;
+        const script=SCRIPT[t];
+        if(script){
+          let note=script;
+          if(t>1&&!script.includes('lead')){
+            // Append recap of last turn's casualties if not already covered
+            const prev=this._tlog(s,t-1);
+            const kills=prev.filter(l=>/ \u2192 (DE|AE|EX)/.test(l)||/Mine vs .+: (DE|AE|EX)/.test(l)||/Missile vs .+: (DE|AE|EX)/.test(l)||/Nuke blast vs .+: (DE|AE|EX)/.test(l));
+            const nuked=prev.filter(l=>/NUKE detonates/.test(l));
+            if(nuked.length&&!script.includes('\u2622')&&!script.includes('nuke')&&!script.includes('nuclear')){
+              note+=` \u2622 Nuke fired last turn.`;
+            } else if(kills.length>3&&!script.includes('kills')&&!script.includes('destroyed')&&!script.includes('massacre')){
+              note+=` Last turn: <b>${kills.length} units lost</b>.`;
+            }
+          }
+          if(this._leadChanges>0&&!script.includes('lead change')&&!script.includes('LEAD')){
+            note+=` <span style="opacity:.7">(${this._leadChanges} lead change${this._leadChanges>1?'s':''} so far.)</span>`;
+          }
+          note+=`<br><span style="opacity:.65;font-size:10px">Fleet: <span class="usa">${alive.usa} USA</span> vs <span class="apu">${alive.apu} APU</span></span>`;
+          return note;
         }
+        // Generic fallback
+        let note='';
+        if(this._leadJustChanged) note=`\ud83d\udd04 <b>LEAD CHANGE! ${delta>0?'USA':'APU'} takes the lead!</b> `;
         if(t>1){
           const prev=this._tlog(s,t-1);
-          const kills=prev.filter(l=>/ → (DE|AE|EX)/.test(l)||/Mine vs .+: (DE|AE|EX)/.test(l)||/Missile vs .+: (DE|AE|EX)/.test(l)||/Nuke vs .+: (DE|AE|EX)/.test(l));
+          const kills=prev.filter(l=>/ \u2192 (DE|AE|EX)/.test(l)||/Mine vs .+: (DE|AE|EX)/.test(l)||/Missile vs .+: (DE|AE|EX)/.test(l)||/Nuke blast vs .+: (DE|AE|EX)/.test(l));
           const nuked=prev.filter(l=>/NUKE detonates/.test(l));
-          const atmo =prev.filter(l=>/atmosphere/.test(l));
+          const atmo=prev.filter(l=>/atmosphere/.test(l));
           let recap='';
-          if(kills.length)  recap+=`<b>${kills.length} unit${kills.length>1?'s':''} destroyed</b>`;
-          if(nuked.length)  recap+=(recap?', ':'')+'☢ nuke detonated';
-          if(atmo.length)   recap+=(recap?', ':'')+`${atmo.length} unit${atmo.length>1?'s':''} lost to atmospheric decay`;
-          if(!recap)        recap='no casualties';
+          if(kills.length) recap+=`<b>${kills.length} unit${kills.length>1?'s':''} destroyed</b>`;
+          if(nuked.length) recap+=(recap?', ':'')+'☢ nuke detonated';
+          if(atmo.length) recap+=(recap?', ':'')+`${atmo.length} unit${atmo.length>1?'s':''} lost to atmospheric decay`;
+          if(!recap) recap='no casualties';
           note+=`Turn ${t} of 60. Last turn: ${recap}. `;
         } else {
-          note+=`Turn ${t} begins — fleets are deploying! `;
+          note+=`Turn ${t} begins \u2014 fleets are deploying! `;
         }
-        note+=`${scoreStr} — ${lead}. `;
+        note+=`${scoreStr} \u2014 ${lead}. `;
         if(this._leadChanges>0) note+=`(${this._leadChanges} lead change${this._leadChanges>1?'s':''} so far.) `;
         note+=`Fleet: <span class="usa">${alive.usa} USA</span> vs <span class="apu">${alive.apu} APU</span>.`;
         return note;
       }
       case 'ORB_MOVE': {
         const ring1Units=s.units.filter(u=>!u.destroyed&&u.hex&&getRing(u.hex)===1);
-        let note=`<b>Orbital sweep</b> — all units drift counterclockwise. Inner rings are faster; watch the animated arcs. `;
-        if(ring1Units.length>0) note+=`<b>${ring1Units.length} unit(s) at ring 1</b> — atmospheric decay risk on retreat! `;
-        if(t>1&&(t-1)%4===0) note+=`🌍 <b>Earth just rotated</b> — scoring cones shifted 60°! `;  // earthRot increments when (turn-1)%4===0
+        let note=`<b>Orbital sweep</b> \u2014 all units drift counterclockwise. Inner rings are faster; watch the animated arcs. `;
+        if(ring1Units.length>0) note+=`<b>${ring1Units.length} unit(s) at ring 1</b> \u2014 atmospheric decay risk on retreat! `;
+        if(t>1&&(t-1)%4===0) note+=`\ud83c\udf0d <b>Earth just rotated</b> \u2014 scoring cones shifted 60\u00b0! `;
         return note;
       }
       case 'LAUNCH_A': {
@@ -5992,11 +6063,11 @@ class Demo {
         const queue=earth.filter(u=>u.typeId!=='ELR'&&!u.launched);
         const owps=s.units.filter(u=>u.side==='usa'&&!u.destroyed&&u.hex&&u.typeId==='OWP');
         const missiles=owps.reduce((n,u)=>(n+(u.weapons?.missiles||0)),0);
-        let note=`<span class="usa"><b>USA launches</b></span> — `;
+        let note=`<span class="usa"><b>USA launches</b></span> \u2014 `;
         if(queue.length) note+=`${queue.length} unit${queue.length>1?'s':''} waiting on the launchpad. `;
         if(deep.filter(u=>!u.launched).length) note+=`${deep.filter(u=>!u.launched).length} deep-space unit(s) inbound. `;
         if(missiles>0) note+=`${owps.length} OWP${owps.length>1?'s':''} with ${missiles} missile${missiles>1?'s':''} ready to fire. `;
-        if(!queue.length&&!missiles) note+=`No forces ready this turn — hold position. `;
+        if(!queue.length&&!missiles) note+=`No forces ready this turn \u2014 hold position. `;
         return note;
       }
       case 'LAUNCH_B': {
@@ -6006,20 +6077,23 @@ class Demo {
         const owps=s.units.filter(u=>u.side==='apu'&&!u.destroyed&&u.hex&&u.typeId==='OWP');
         const missiles=owps.reduce((n,u)=>(n+(u.weapons?.missiles||0)),0);
         const nukes=owps.reduce((n,u)=>(n+(u.weapons?.nukes||0)),0);
-        let note=`<span class="apu"><b>APU launches</b></span> — `;
+        let note=`<span class="apu"><b>APU launches</b></span> \u2014 `;
         if(queue.length) note+=`${queue.length} unit${queue.length>1?'s':''} queued for ELR insertion. `;
         if(deep.filter(u=>!u.launched).length) note+=`${deep.filter(u=>!u.launched).length} deep-space unit(s) inbound. `;
-        if(missiles>0||nukes>0) note+=`${owps.length} OWP${owps.length>1?'s':''} — ${missiles} missile${missiles!==1?'s':''}${nukes>0?` + ${nukes} nuke${nukes>1?'s':''}`:''}. `;
+        if(missiles>0||nukes>0) note+=`${owps.length} OWP${owps.length>1?'s':''} \u2014 ${missiles} missile${missiles!==1?'s':''}${nukes>0?` + <b>${nukes} nuke${nukes>1?'s':''} \u2622</b>`:''}. `;
+        if(nukes>0) note+=`<em>Nuclear ordnance active \u2014 blast radius 1, \u221210VP to owner on detonation.</em>`;
         return note;
       }
       case 'OPT_A': {
         const hks=s.units.filter(u=>u.side==='usa'&&!u.destroyed&&u.hex&&u.typeId==='HK');
         const ewrs=s.units.filter(u=>u.side==='usa'&&!u.destroyed&&u.hex&&u.typeId==='EWR');
         const inCone=ewrs.filter(u=>this.eng._inEnemyCone(u));
-        let note=`<span class="usa"><b>USA maneuvers</b></span> — `;
+        let note=`<span class="usa"><b>USA maneuvers</b></span> \u2014 `;
         if(hks.length) note+=`${hks.length} HK${hks.length>1?'s':''} close in on APU positions. `;
+        else note+=`No HKs remaining \u2014 USA has lost its attack force. `;
         if(inCone.length) note+=`${inCone.length} EWR${inCone.length>1?'s':''} already scoring inside APU cone. `;
-        else if(ewrs.length) note+=`EWRs seeking APU cone for 3VP/turn. `;
+        else if(ewrs.length) note+=`EWRs seeking the APU cone for 3VP/turn. `;
+        else note+=`No EWRs left \u2014 USA scoring capacity is gone.`;
         return note;
       }
       case 'OPT_B': {
@@ -6027,65 +6101,78 @@ class Demo {
         const mines=s.units.filter(u=>u.side==='apu'&&!u.destroyed&&u.hex&&u.typeId==='MINE');
         const ewrs=s.units.filter(u=>u.side==='apu'&&!u.destroyed&&u.hex&&u.typeId==='EWR');
         const inCone=ewrs.filter(u=>this.eng._inEnemyCone(u));
-        let note=`<span class="apu"><b>APU maneuvers</b></span> — `;
-        if(hks.length) note+=`${hks.length} HK${hks.length>1?'s':''} intercept. `;
-        if(mines.length) note+=`${mines.length} mine${mines.length>1?'s':''} orbit silently, waiting. `;
-        if(inCone.length) note+=`${inCone.length} EWR${inCone.length>1?'s':''} scoring in USA cone (${inCone.length*3}VP/turn). `;
+        let note=`<span class="apu"><b>APU maneuvers</b></span> \u2014 `;
+        if(hks.length) note+=`${hks.length} HK${hks.length>1?'s':''} on intercept courses. `;
+        if(mines.length) note+=`${mines.length} mine${mines.length>1?'s':''} orbit silently \u2014 unavoidable at close range. `;
+        if(inCone.length) note+=`${inCone.length} EWR${inCone.length>1?'s':''} scoring in USA cone (+${inCone.length*3}VP/turn). `;
         return note;
       }
       case 'MINE_CBT': {
-        // Mine combat already ran when we got here — show the results
         const tl=this._tlog(s,t);
-        const kills=tl.filter(l=>/Mine vs .+: (DE|AE|EX)/.test(l)||/Missile vs .+: (DE|AE|EX)/.test(l)||/Nuke vs .+: (DE|AE|EX)/.test(l));
+        const nuked=tl.filter(l=>/NUKE detonates/.test(l));
+        const allKills=tl.filter(l=>/Mine vs .+: (DE|AE|EX)/.test(l)||/Missile vs .+: (DE|AE|EX)/.test(l)||/Nuke blast vs .+: (DE|AE|EX)/.test(l));
         const retreats=tl.filter(l=>/Mine vs .+: (DR|AR)/.test(l)||/Missile vs .+: (DR|AR)/.test(l));
         const jammed=tl.filter(l=>/CJS jammed/.test(l));
-        const nuked=tl.filter(l=>/NUKE detonates/.test(l));
         const noTarget=tl.filter(l=>/no targets/.test(l));
-        if(nuked.length&&kills.length){
-          return `☢ <b>NUKE detonated!</b> ${kills.length} unit(s) eliminated by blast. Owner pays <b>10VP penalty</b>. ${jammed.length?`CJS jammed ${jammed.length} other missile(s).`:''}`;
-        } else if(kills.length){
-          const who=kills[0].replace(/T\d+: /,'').replace(/: (DE|AE|EX)/,' eliminated!');
-          return `💥 <b>Direct hit! ${who}</b> ${kills.length>1?`(${kills.length} units total destroyed)`:''} ${jammed.length?`CJS blocked ${jammed.length} missile(s).`:''}`;
-        } else if(jammed.length&&retreats.length){
-          return `<b>Electronic warfare saves the day</b> — CJS jammed ${jammed.length} missile(s). ${retreats.length} unit(s) forced to retreat.`;
-        } else if(jammed.length){
-          return `<span class="usa">CJS countermeasures active</span> — ${jammed.length} missile(s) jammed. No casualties.`;
-        } else if(retreats.length){
-          return `<b>Near misses</b> — ${retreats.length} unit(s) forced to retreat. No eliminations.`;
-        } else if(noTarget.length){
-          return `Missiles drift past — <b>no valid targets</b> this sweep. Ordnance expires before next orbital phase.`;
+        if(nuked.length){
+          const nm=nuked[0].match(/ring (\d+)/);
+          const ring=nm?nm[1]:'?';
+          const nukerSide=nuked[0].includes('APU NUKE')?'apu':'usa';
+          const enemySide=nukerSide==='apu'?'usa':'apu';
+          const ffKills=tl.filter(l=>/Nuke blast vs/.test(l)&&new RegExp(`Nuke blast vs ${nukerSide.toUpperCase()}`).test(l)&&/ (DE|AE|EX)/.test(l));
+          const enemyKills=tl.filter(l=>/Nuke blast vs/.test(l)&&new RegExp(`Nuke blast vs ${enemySide.toUpperCase()}`).test(l)&&/ (DE|AE|EX)/.test(l));
+          let txt=`\u2622 <b>NUCLEAR DETONATION \u2014 ring ${ring}!</b> `;
+          if(ffKills.length) txt+=`<b>${ffKills.length} ${nukerSide.toUpperCase()} unit${ffKills.length>1?'s':''} destroyed by FRIENDLY FIRE!</b> `;
+          if(enemyKills.length) txt+=`${enemyKills.length} ${enemySide.toUpperCase()} unit${enemyKills.length>1?'s':''} eliminated. `;
+          txt+=`Owner pays <b>\u221210VP</b>.`;
+          if(jammed.length) txt+=` CJS jammed ${jammed.length} other missile${jammed.length>1?'s':''}.`;
+          return txt;
         }
-        return `<b>Mine/missile phase</b> — nothing in range. Mines continue orbit.`;
+        if(allKills.length){
+          // Try to identify the most notable kill
+          const mineKills=allKills.filter(l=>/Mine vs/.test(l));
+          const msKills=allKills.filter(l=>/Missile vs/.test(l));
+          let headline='';
+          if(mineKills.length>=3) headline=`\ud83d\udca3 <b>Mine field claims ${mineKills.length} units</b> in a single sweep! `;
+          else if(mineKills.length) { const who=mineKills[0].replace(/T\d+: Mine vs /,'').replace(/: (DE|AE|EX)/,''); headline=`\ud83d\udca5 Mine destroys <b>${who}</b>! `; }
+          else if(msKills.length) { const who=msKills[0].replace(/T\d+: Missile vs /,'').replace(/: (DE|AE|EX)/,''); headline=`\ud83d\udca5 Missile finds its mark \u2014 <b>${who} eliminated</b>! `; }
+          return `${headline}${allKills.length>1?`${allKills.length} total units destroyed this sweep. `:''} ${jammed.length?`CJS blocked ${jammed.length} other missile${jammed.length>1?'s':''}.`:''}`;
+        }
+        if(jammed.length&&retreats.length) return `<b>Electronic warfare saves the day</b> \u2014 CJS jammed ${jammed.length} missile${jammed.length>1?'s':''}. ${retreats.length} unit${retreats.length>1?'s':''} forced to retreat.`;
+        if(jammed.length) return `<span class="usa">CJS countermeasures active</span> \u2014 ${jammed.length} missile${jammed.length>1?'s':''} jammed. No casualties.`;
+        if(retreats.length) return `<b>Near misses</b> \u2014 ${retreats.length} unit${retreats.length>1?'s':''} forced to retreat. No eliminations.`;
+        if(noTarget.length) return `Missiles drift past \u2014 <b>no valid targets</b> this sweep. Ordnance expires harmlessly.`;
+        return `Mine/missile phase \u2014 nothing in range. Mines continue their silent orbit.`;
       }
       case 'COMBAT': {
-        // About to fight — preview possible engagements
         const fights=[];
         s.units.filter(u=>!u.destroyed&&u.hex&&u.type.atk>0).forEach(atk=>{
           s.units.filter(e=>!e.destroyed&&e.hex&&e.side!==atk.side&&e.hex.q===atk.hex.q&&e.hex.r===atk.hex.r&&e.typeId!=='MINE').forEach(def=>{
             fights.push({atk,def});
           });
         });
-        const uniqueFights=[...new Map(fights.map(f=>[`${f.atk.hex.q},${f.atk.hex.r}`,f])).values()];
-        let note=`<b>Normal combat</b> — ${fights.length} attack${fights.length!==1?'s':''} queued. CJS gives ±1 DEF within radius 2. `;
-        if(uniqueFights.length>0){
-          const f=uniqueFights[0];
-          note+=`${f.atk.side.toUpperCase()} ${f.atk.type.short} meets ${f.def.side.toUpperCase()} ${f.def.type.short} at ring ${getRing(f.atk.hex)}.`;
-        }
+        const uniqueHexes=[...new Map(fights.map(f=>[`${f.atk.hex.q},${f.atk.hex.r}`,f])).values()];
+        if(!fights.length) return `<b>Combat phase</b> \u2014 no units in contact. Fleets orbit at safe distance.`;
+        let note=`<b>Normal combat</b> \u2014 ${fights.length} attack${fights.length!==1?'s':''} across ${uniqueHexes.length} hex${uniqueHexes.length!==1?'es':''}. `;
+        const f=uniqueHexes[0];
+        note+=`<span class="${f.atk.side}">${f.atk.type.short}</span> ATK ${f.atk.type.atk} meets <span class="${f.def.side}">${f.def.type.short}</span> DEF ${f.def.type.def} at ring ${getRing(f.atk.hex)}.`;
+        if(fights.length>1) note+=` +${fights.length-1} more engagement${fights.length-1>1?'s':''}.`;
         return note;
       }
       case 'SCORING': {
-        // Scoring already ran — show what was earned
         const tl=this._tlog(s,t);
         const usaLines=tl.filter(l=>/^T\d+: USA .+\+\d+VP/.test(l));
         const apuLines=tl.filter(l=>/^T\d+: APU .+\+\d+VP/.test(l));
         const usaGain=usaLines.reduce((n,l)=>{const m=l.match(/\+(\d+)VP/);return n+(m?+m[1]:0);},0);
         const apuGain=apuLines.reduce((n,l)=>{const m=l.match(/\+(\d+)VP/);return n+(m?+m[1]:0);},0);
         const jammedEWR=tl.filter(l=>/EWR jammed/.test(l));
-        let note=`<b>Scoring phase:</b> `;
+        const gap=200-Math.abs(delta);
+        let note=`<b>Scoring:</b> `;
         if(usaGain>0) note+=`<span class="usa">USA +${usaGain}VP</span> `;
         if(apuGain>0) note+=`<span class="apu">APU +${apuGain}VP</span>. `;
-        if(jammedEWR.length) note+=`${jammedEWR.length} EWR(s) jammed — no score. `;
-        note+=`<b>${scoreStr} — ${lead}.</b> Win by opening a 200VP gap.`;
+        if(jammedEWR.length) note+=`${jammedEWR.length} EWR${jammedEWR.length>1?'s':''} jammed \u2014 silenced. `;
+        note+=`<b>${scoreStr} \u2014 ${lead}.</b>`;
+        if(gap<50) note+=` \u26a0 Only <b>${gap}VP</b> from a game-ending gap!`;
         return note;
       }
       default:
@@ -6134,10 +6221,21 @@ class Demo {
         const tl=this._tlog(s,t);
         const kills=tl.filter(l=>/ → (DE|AE|EX)/.test(l));
         const atmo=tl.filter(l=>/atmosphere/.test(l));
-        if(!kills.length&&!atmo.length) return `<b>Combat resolved</b> — no eliminations. ${lead}.`;
-        let note=`<b>Battle report:</b> ${kills.length} unit${kills.length!==1?'s':''} destroyed`;
+        if(!kills.length&&!atmo.length) return `<b>Combat resolved</b> — no eliminations. Satellites pass each other in the dark. ${lead}.`;
+        // Parse kill descriptions from log: "USA HK vs APU EWR: ATK 4−DEF 1=diff 3 → DE"
+        const killDescs=kills.slice(0,3).map(l=>{
+          const m=l.match(/: (\w+) (\w+) vs (\w+) (\w+):.*→ (DE|AE|EX)/);
+          if(!m)return null;
+          const res=m[5]==='DE'?`destroys ${m[3]} ${m[4]}`:m[5]==='AE'?`lost to ${m[3]} ${m[4]} (AE)`:
+                    `trades with ${m[3]} ${m[4]} (EX)`;
+          return `<span class="${m[1].toLowerCase()}">${m[1]} ${m[2]}</span> ${res}`;
+        }).filter(Boolean);
+        let note=`<b>Battle report — ${kills.length} unit${kills.length!==1?'s':''} destroyed</b>`;
         if(atmo.length) note+=`, ${atmo.length} lost to atmospheric decay`;
-        note+=`. ${lead}.`;
+        note+=`.`;
+        if(killDescs.length) note+=` ${killDescs.join('; ')}.`;
+        if(kills.length>3) note+=` (+${kills.length-3} more.)`;
+        note+=` ${lead}.`;
         return note;
       }
       case 'SCORING': {
