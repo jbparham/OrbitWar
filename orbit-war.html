@@ -1748,6 +1748,8 @@ class Engine {
         blastHexes.some(h=>h.q===e.hex.q&&h.r===e.hex.r));
       this._log(`${nuke.side.toUpperCase()} NUKE detonates at ring ${getRing(nuke.hex)}! Blast radius 1 — ${targets.length} unit(s) in range — owner −10VP`);
       this.state.vp[nuke.side]=Math.max(0,this.state.vp[nuke.side]-10);
+      if(!this.state.nukeEvents) this.state.nukeEvents=[];
+      this.state.nukeEvents.push({hex:{...nuke.hex},blastHexes:blastHexes.map(h=>({...h}))});
       targets.forEach(t=>{
         if(t.destroyed)return; // guard: may have been destroyed earlier in this blast
         const res=crt(5,this._effDef(t));
@@ -1885,6 +1887,8 @@ class Engine {
     // §18: costs 10VP and hits ALL units (friend & foe) within blast radius 1
     this.state.vp[u.side]=Math.max(0,this.state.vp[u.side]-10);
     const blastHexes=hexesInRange(u.hex,1).filter(h=>getRing(h)>=1&&getRing(h)<=10);
+    if(!this.state.nukeEvents) this.state.nukeEvents=[];
+    this.state.nukeEvents.push({hex:{...u.hex},blastHexes:blastHexes.map(h=>({...h}))});
     this.state.units.filter(x=>!x.destroyed&&x.hex&&x.id!==uid&&
       blastHexes.some(h=>h.q===x.hex.q&&h.r===x.hex.r))
       .forEach(t=>{
@@ -2020,6 +2024,7 @@ class Renderer {
     this._lastOrbTrails=null; // last orbTrails ref we started an animation for
     this._earthRotAnim=null;  // active earth-rotation animation state
     this._lastEarthRot=0;     // earthRot value as of last render (to detect changes)
+    this._nukeAnim=null;      // active nuclear blast animation state
     this._setupEvents();
     this.resize();
   }
@@ -2121,6 +2126,16 @@ class Renderer {
       }
     }
     if(this.eng.state)this._drawUnits();
+    // Auto-start nuke blast animation when engine reports a detonation
+    if(this.eng.state){
+      const ne=this.eng.state.nukeEvents;
+      if(ne&&ne.length&&!this._nukeAnim){
+        const ev=ne.shift(); // consume one event
+        this.startNukeAnim(ev.hex,ev.blastHexes);
+      }
+    }
+    // Draw active nuke blast on top of everything
+    if(this._nukeAnim)this._drawNukeBlast();
   }
 
   // Show CJS jamming radius when player hovers over a CJS unit
@@ -2724,6 +2739,117 @@ class Renderer {
       this._earthRotAnim=null;
       this.render();
     }
+  }
+
+  // ── Nuclear blast animation ──────────────────────────────────
+  startNukeAnim(hex, blastHexes, dur=2200){
+    this._nukeAnim={hex,blastHexes,start:performance.now(),dur,t:0};
+    requestAnimationFrame(ts=>this._nukeAnimLoop(ts));
+  }
+
+  _nukeAnimLoop(ts){
+    if(!this._nukeAnim)return;
+    const {start,dur}=this._nukeAnim;
+    const t=Math.min((ts-start)/dur,1);
+    this._nukeAnim.t=t;
+    this.render();
+    if(t<1){requestAnimationFrame(ts2=>this._nukeAnimLoop(ts2));}
+    else{this._nukeAnim=null;this.render();}
+  }
+
+  _drawNukeBlast(){
+    if(!this._nukeAnim)return;
+    const {hex,blastHexes,t}=this._nukeAnim;
+    const ctx=this.ctx;
+    const cp=this.h2p(hex);
+    const sz=this.sz;
+    ctx.save();
+
+    // ── Phase 1 (t 0–0.18): white-hot initial flash ───────────
+    if(t<0.25){
+      const p=t/0.25;
+      const r=sz*(1.2+p*5);
+      const a=p<0.4?p/0.4:1-(p-0.4)/0.6;
+      const g=ctx.createRadialGradient(cp.x,cp.y,0,cp.x,cp.y,r);
+      g.addColorStop(0,  `rgba(255,255,255,${a})`);
+      g.addColorStop(0.25,`rgba(255,250,180,${a*.95})`);
+      g.addColorStop(0.55,`rgba(255,160,0,${a*.7})`);
+      g.addColorStop(0.8, `rgba(255,40,0,${a*.35})`);
+      g.addColorStop(1,   `rgba(0,0,0,0)`);
+      ctx.fillStyle=g;
+      ctx.beginPath();ctx.arc(cp.x,cp.y,r,0,Math.PI*2);ctx.fill();
+    }
+
+    // ── Expanding shockwave ring (t 0.05–0.65) ────────────────
+    if(t>0.05&&t<0.65){
+      const p=(t-0.05)/0.6;
+      const maxR=sz*5.5;
+      const r=p*maxR;
+      const a=(1-p)*0.9;
+      const lw=sz*(0.5-p*0.35);
+      ctx.beginPath();ctx.arc(cp.x,cp.y,r,0,Math.PI*2);
+      ctx.strokeStyle=`rgba(255,210,50,${a})`;
+      ctx.lineWidth=Math.max(1,lw);ctx.stroke();
+      if(r>sz*0.8){
+        ctx.beginPath();ctx.arc(cp.x,cp.y,r*0.65,0,Math.PI*2);
+        ctx.strokeStyle=`rgba(255,80,0,${a*0.6})`;
+        ctx.lineWidth=Math.max(1,lw*0.5);ctx.stroke();
+      }
+      // Second trailing ring slightly behind
+      const r2=(p-0.08)*maxR;
+      if(r2>0){
+        ctx.beginPath();ctx.arc(cp.x,cp.y,r2,0,Math.PI*2);
+        ctx.strokeStyle=`rgba(255,140,20,${a*0.4})`;
+        ctx.lineWidth=Math.max(1,lw*0.3);ctx.stroke();
+      }
+    }
+
+    // ── Blast hex glow (t 0.12–1.0) ───────────────────────────
+    if(t>0.12){
+      blastHexes.forEach(bh=>{
+        const isCenter=bh.q===hex.q&&bh.r===hex.r;
+        const delay=isCenter?0:0.08;
+        const tp=Math.max(0,(t-0.12-delay)/0.25);
+        if(tp<=0)return;
+        const fadeStart=0.55, fade=t>fadeStart?(1-(t-fadeStart)/(1-fadeStart)):1;
+        const intensity=Math.min(tp*3,1)*fade;
+        const fill=isCenter
+          ?`rgba(255,80,0,${intensity*0.65})`
+          :`rgba(255,150,0,${intensity*0.38})`;
+        const stroke=isCenter
+          ?`rgba(255,160,20,${intensity})`
+          :`rgba(255,200,50,${intensity*0.7})`;
+        this._hlHex(bh,fill,stroke,isCenter?3:1.5);
+      });
+    }
+
+    // ── ☢ symbol at detonation hex (t 0.08–0.88) ─────────────
+    if(t>0.08&&t<0.88){
+      const a=t<0.22?(t-0.08)/0.14:t>0.72?1-(t-0.72)/0.16:1;
+      const pulse=1+0.12*Math.sin(t*Math.PI*12);
+      const fs=Math.max(14,sz*1.5)*pulse;
+      ctx.font=`bold ${fs}px monospace`;
+      ctx.textAlign='center';ctx.textBaseline='middle';
+      // Dark outline
+      ctx.lineWidth=4;ctx.strokeStyle=`rgba(0,0,0,${a*0.8})`;
+      ctx.strokeText('☢',cp.x,cp.y);
+      ctx.fillStyle=`rgba(255,230,50,${a})`;
+      ctx.fillText('☢',cp.x,cp.y);
+    }
+
+    // ── Smoke/fade-out particle haze (t 0.6–1.0) ─────────────
+    if(t>0.6){
+      const p=(t-0.6)/0.4;
+      const a=(1-p)*0.25;
+      const r=sz*(2+p*2);
+      const g=ctx.createRadialGradient(cp.x,cp.y,sz*0.5,cp.x,cp.y,r);
+      g.addColorStop(0,`rgba(80,60,40,${a})`);
+      g.addColorStop(1,`rgba(0,0,0,0)`);
+      ctx.fillStyle=g;
+      ctx.beginPath();ctx.arc(cp.x,cp.y,r,0,Math.PI*2);ctx.fill();
+    }
+
+    ctx.restore();
   }
 
   _drawHexUnits(units){
