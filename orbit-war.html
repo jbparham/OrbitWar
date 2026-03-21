@@ -5773,6 +5773,17 @@ class Demo {
     this.ui._show('scr-welcome');
   }
 
+  _restart(){
+    if(!this._active) return; // user exited during the game-over pause
+    // Reset tracking state and reseed RNG, then replay the same game
+    this._leadChanges=0; this._prevLeader=null; this._leadJustChanged=false;
+    this._ai=null;
+    Math.random=mulberry32(DEMO_SEED);
+    this._setupBoard();
+    this._annotate('Restarting…', '');
+    this._timer=setTimeout(()=>this._tick(), this._delay(1000));
+  }
+
   _toggleSpeed(){
     const cycle = ['SLOW','NORMAL','FAST'];
     this._speed = cycle[(cycle.indexOf(this._speed||'NORMAL') + 1) % cycle.length];
@@ -5878,8 +5889,8 @@ class Demo {
       const winner = s.winner || (s.vp.usa >= s.vp.apu ? 'usa' : 'apu');
       const w = winner === 'usa' ? '<span class="usa">USA WINS</span>' : '<span class="apu">APU WINS</span>';
       const how = s.gameOver ? `200VP gap reached` : `turn limit — VP decision`;
-      this._annotate(`${w} — <b>${s.vp.usa}VP</b> vs <b>${s.vp.apu}VP</b> (${how}). Returning to menu…`, 'GAME OVER');
-      this._timer = setTimeout(()=>this._exit(), this._delay(5000));
+      this._annotate(`${w} — <b>${s.vp.usa}VP</b> vs <b>${s.vp.apu}VP</b> (${how}). Restarting…`, 'GAME OVER');
+      this._timer = setTimeout(()=>this._restart(), this._delay(5000));
       return;
     }
 
