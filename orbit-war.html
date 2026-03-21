@@ -3237,8 +3237,8 @@ class UI {
     document.getElementById('btn-demo')?.addEventListener('click',()=>{
       const demo=new Demo(this); demo.start();
     });
-    document.getElementById('btn-load-game').addEventListener('click',()=>this._loadGame());
-    document.getElementById('btn-save-game').addEventListener('click',()=>this._saveGame());
+    document.getElementById('btn-load-game').addEventListener('click',()=>this._loadGame().catch(e=>this._toast('Load error: '+e.message)));
+    document.getElementById('btn-save-game').addEventListener('click',()=>this._saveGame().catch(e=>this._toast('Save error: '+e.message)));
     document.getElementById('zoom-in')?.addEventListener('click',()=>this.ren._zoomAt(1.25,this.ren.cv.width/2,this.ren.cv.height/2));
     document.getElementById('zoom-out')?.addEventListener('click',()=>this.ren._zoomAt(0.80,this.ren.cv.width/2,this.ren.cv.height/2));
     document.getElementById('zoom-rst')?.addEventListener('click',()=>this.ren._resetView());
@@ -4801,16 +4801,75 @@ class UI {
     this._show('scr-welcome');
   }
 
-  _saveGame(){
-    try{localStorage.setItem('ow_save',this.eng.serialize());this._toast('Saved!')}
-    catch(e){this._toast('Save failed')}
+  // ── File-based save / load ────────────────────────────────────
+  // Uses the File System Access API (Chrome/Edge) with a download/upload
+  // fallback for other browsers. Saves to a plain JSON file that can live
+  // on a shared network drive for asynchronous play.
+
+  async _saveGame(){
+    const json=this.eng.serialize();
+    if(window.showSaveFilePicker){
+      try{
+        // Reuse handle from this session so repeated saves don't re-prompt
+        if(!this._saveHandle){
+          this._saveHandle=await window.showSaveFilePicker({
+            suggestedName:'orbit-war-save.json',
+            types:[{description:'Orbit War Save',accept:{'application/json':['.json']}}]
+          });
+        }
+        const w=await this._saveHandle.createWritable();
+        await w.write(json); await w.close();
+        this._toast('Game saved to file ✓');
+      }catch(e){
+        if(e.name==='AbortError') return; // user cancelled — no message needed
+        // If the cached handle is stale (e.g. file was moved), clear it and retry once
+        this._saveHandle=null;
+        this._toast('Save error — try again: '+e.message);
+      }
+    } else {
+      // Fallback: trigger a .json download
+      const blob=new Blob([json],{type:'application/json'});
+      const url=URL.createObjectURL(blob);
+      const a=document.createElement('a');
+      a.href=url; a.download='orbit-war-save.json'; a.click();
+      setTimeout(()=>URL.revokeObjectURL(url),5000);
+      this._toast('Save file downloaded ✓');
+    }
   }
-  _loadGame(){
-    const j=localStorage.getItem('ow_save');
-    if(!j){this._toast('No save found');return}
-    this.eng.deserialize(j);
-    this._show('scr-game'); this.ren.render(); this._updateUI();
-    this._toast('Loaded!');
+
+  async _loadGame(){
+    if(window.showOpenFilePicker){
+      try{
+        const [handle]=await window.showOpenFilePicker({
+          types:[{description:'Orbit War Save',accept:{'application/json':['.json']}}]
+        });
+        const file=await handle.getFile();
+        const text=await file.text();
+        this.eng.deserialize(text);
+        this._saveHandle=handle; // future saves will overwrite same file
+        this._show('scr-game'); this.ren.render(); this._updateUI();
+        this._toast('Game loaded ✓');
+      }catch(e){
+        if(e.name!=='AbortError') this._toast('Load failed: '+e.message);
+      }
+    } else {
+      // Fallback: hidden file-input picker
+      const inp=document.createElement('input');
+      inp.type='file'; inp.accept='.json,application/json';
+      inp.onchange=e=>{
+        const file=e.target.files[0]; if(!file)return;
+        const reader=new FileReader();
+        reader.onload=ev=>{
+          try{
+            this.eng.deserialize(ev.target.result);
+            this._show('scr-game'); this.ren.render(); this._updateUI();
+            this._toast('Game loaded ✓');
+          }catch(err){this._toast('Load failed: '+err.message);}
+        };
+        reader.readAsText(file);
+      };
+      inp.click();
+    }
   }
 }
 
