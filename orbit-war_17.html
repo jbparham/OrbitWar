@@ -610,6 +610,10 @@ body{background:var(--bg);color:var(--text);font-family:var(--ui);font-size:13px
         <div id="action-bar"></div>
       </div>
       <div class="s-sec" style="flex:1;display:flex;flex-direction:column;overflow:hidden">
+        <div class="s-title" style="cursor:pointer;user-select:none" id="stats-toggle">
+          Stats <span id="stats-arrow" style="opacity:.5;font-size:9px">▼</span>
+        </div>
+        <div id="stats-panel" style="display:none;font-family:var(--mono);font-size:10px;padding:4px 8px;border-bottom:1px solid var(--border)"></div>
         <div class="s-title">Game Log</div>
         <div id="game-log"></div>
       </div>
@@ -1169,6 +1173,8 @@ class Engine {
       earthUnits:{usa:[],apu:[]}, bookkeeping:{usa:{},apu:{}},
       earthRot:0, log:[], setup:{complete:false}, gameOver:false,
       elrLaunches:{usa:0,apu:0},
+      ceaseFireCount:0,
+      stats:{kills:{usa:{},apu:{}},vpHistory:[]},
       nextId:1
     };
     this._log('Game: '+sc.name);
@@ -1574,6 +1580,11 @@ class Engine {
       this.state.vp[killer]+=u.type.vpKill;
       this._log(`${killer.toUpperCase()} +${u.type.vpKill}VP (killed ${u.type.short})`);
     }
+    // Track kills in stats
+    if(killer&&this.state.stats){
+      const kills=this.state.stats.kills[killer];
+      if(kills) kills[u.typeId]=(kills[u.typeId]||0)+1;
+    }
     u.carrying.forEach(pid=>{const p=this._get(pid);if(p){p.destroyed=true;p.onRocket=null}});
     u.carrying=[];
   }
@@ -1584,14 +1595,34 @@ class Engine {
       // Move one hex toward Earth
       const nb=HEX_DIRS.map(d=>({q:u.hex.q+d.q,r:u.hex.r+d.r}));
       const inner=nb.find(n=>getRing(n)<r);
-      if(inner){ u.hex=inner; return; }
+      if(inner){
+        u.hex=inner;
+        // §6: if retreat destination contains enemy mines, they fire immediately
+        this._triggerMinesOnEntry(u);
+        return;
+      }
     }
     // At ring 1 with nowhere to retreat — unit is pulled into Earth's atmosphere and lost.
     // No VP awarded (not a kill, just orbital decay).
-    this._log(`☄ ${u.side.toUpperCase()} ${u.type.short} forced into Earth’s atmosphere — orbital decay (no VP)`);
+    this._log(`☄ ${u.side.toUpperCase()} ${u.type.short} forced into Earth's atmosphere — orbital decay (no VP)`);
     if(!this.state.atmoEvents) this.state.atmoEvents=[];
     this.state.atmoEvents.push({side:u.side,typeShort:u.type.short});
     u.destroyed=true; u.hex=null;
+  }
+
+  // §6: mines fire against a unit entering their hex due to retreat
+  _triggerMinesOnEntry(u){
+    if(u.destroyed||!u.hex)return;
+    this.state.units.filter(m=>
+      m.typeId==='MINE'&&!m.destroyed&&m.hex&&
+      m.hex.q===u.hex.q&&m.hex.r===u.hex.r&&
+      m.side!==u.side&&!m.moved
+    ).forEach(mine=>{
+      if(u.destroyed)return;
+      const res=crt(6,this._effDef(u));
+      this._log(`Mine triggers on retreating ${u.side.toUpperCase()} ${u.type.short}: ${res}`);
+      this._applyResult(res,mine,u);
+    });
   }
 
   // ─────────────────────────────────────────────────────────
@@ -1713,6 +1744,10 @@ class Engine {
 
     // Store summary for the UI to display as a scoring toast
     this.state.scoringSummary = { gains, events };
+    // Track VP history for statistics panel
+    if(this.state.stats){
+      this.state.stats.vpHistory.push({turn:this.state.turn,usa:this.state.vp.usa,apu:this.state.vp.apu});
+    }
   }
 
   _hexAngleDeg(h) {
@@ -1751,6 +1786,18 @@ class Engine {
       this.state.gameOver=true;
       this.state.winner=vp.usa>vp.apu?'usa':vp.apu>vp.usa?'apu':'draw';
       this._log('GAME OVER (turns): '+this.state.winner);
+    }
+    // §23 Cease-fire: 18 consecutive turns with no VP change → game ends
+    const last=this.state.vpLastTurn||{usa:0,apu:0};
+    if(vp.usa===last.usa&&vp.apu===last.apu){
+      this.state.ceaseFireCount=(this.state.ceaseFireCount||0)+1;
+      if(this.state.ceaseFireCount>=18){
+        this.state.gameOver=true;
+        this.state.winner=vp.usa>vp.apu?'usa':vp.apu>vp.usa?'apu':'draw';
+        this._log(`GAME OVER (cease-fire §23 — ${18} turns no VP change): `+this.state.winner);
+      }
+    } else {
+      this.state.ceaseFireCount=0;
     }
   }
 
@@ -1881,7 +1928,7 @@ class Renderer {
   constructor(canvas,engine){
     this.cv=canvas; this.ctx=canvas.getContext('2d'); this.eng=engine;
     this.hs=26; this.origin={x:0,y:0}; this.MAX=10;
-    this.sel=null; this.validMoves=[]; this.hovered=null;
+    this.sel=null; this.validMoves=[]; this.attackTargets=[]; this.hovered=null;
     this.launchTargetRing=null;
     this.olrLauncher=null;
     this._stars=null;
@@ -1962,6 +2009,7 @@ class Renderer {
     if(this.olrLauncher) this._drawOLRRange(this.olrLauncher);
     else this._drawOLRAvailable();
     if(this.validMoves.length)this._drawMoves();
+    if(this.attackTargets.length)this._drawAttackTargets();
     // Supply counter glow when an OWP/Shuttle is selected
     if(this.eng.state)this._drawSupplyGlow();
     // CJS radius on hover
@@ -2316,6 +2364,14 @@ class Renderer {
 
   _drawMoves(){
     this.validMoves.forEach(h=>this._hlHex(h,'rgba(0,255,170,.18)','#00ffaa',1.5));
+  }
+
+  _drawAttackTargets(){
+    // Highlight enemy units that can be attacked (same hex as attacker)
+    this.attackTargets.forEach(u=>{
+      if(!u.hex||u.destroyed)return;
+      this._hlHex(u.hex,'rgba(255,60,60,.22)','#ff4444',2);
+    });
   }
 
   _hlHex(h,fill,stroke=null,lw=1){
@@ -2774,7 +2830,7 @@ class Renderer {
   // ─────────────────────────────────────────────────────────
 
   setSelected(u){
-    this.sel=u; this.validMoves=[];
+    this.sel=u; this.validMoves=[]; this.attackTargets=[];
     if(u&&u.hex){
       const ma=u.type.mov,fr=getRing(u.hex);
       hexesInRange(u.hex,ma+1).forEach(h=>{
@@ -2999,6 +3055,32 @@ class UI {
     // Tutorial bar buttons
     document.getElementById('tut-btn-next')?.addEventListener('click',()=>this._advanceTutorial());
     document.getElementById('tut-btn-exit')?.addEventListener('click',()=>this._endTutorial());
+
+    // Stats panel toggle
+    document.getElementById('stats-toggle')?.addEventListener('click',()=>{
+      const p=document.getElementById('stats-panel');
+      const a=document.getElementById('stats-arrow');
+      if(!p)return;
+      const open=p.style.display==='none';
+      p.style.display=open?'block':'none';
+      if(a)a.textContent=open?'▲':'▼';
+      if(open)this._updateStats();
+    });
+
+    // Keyboard shortcuts
+    document.addEventListener('keydown',e=>{
+      if(e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA'||e.target.isContentEditable)return;
+      const s=this.eng.state;
+      if(!s||!s.setup.complete||s.gameOver)return;
+      if(e.key===' '||e.key==='Enter'){
+        e.preventDefault();
+        document.getElementById('btn-next-phase')?.click();
+      } else if(e.key==='Escape'){
+        this._cancelMode();
+      } else if(e.key==='z'||e.key==='Z'){
+        this.ren._resetView();
+      }
+    });
   }
 
   _show(id) {
@@ -3841,7 +3923,16 @@ class UI {
     p.style.display='block';
     document.getElementById('btn-atk')?.addEventListener('click',()=>{
       this.mode='attack'; this.sel=u;
-      this._setStatus(`${u.type.short} (ATK ${u.type.atk}) — click enemy hex`);
+      // Highlight enemies in the same hex
+      this.ren.attackTargets=this.eng.state.units.filter(e=>
+        !e.destroyed&&e.hex&&e.side!==u.side&&e.typeId!=='MINE'&&
+        e.hex.q===u.hex.q&&e.hex.r===u.hex.r
+      );
+      this.ren.render();
+      const n=this.ren.attackTargets.length;
+      this._setStatus(n
+        ?`${u.type.short} (ATK ${u.type.atk}) — ${n} target${n>1?'s':''} in hex, click to attack`
+        :`${u.type.short} (ATK ${u.type.atk}) — no enemies in this hex`);
       this._updateActionBar();
     });
     document.getElementById('btn-det')?.addEventListener('click',()=>{
@@ -4055,6 +4146,7 @@ class UI {
     this._updateTopBar();
     this._updatePhaseTracker();
     this._updateLog();
+    this._updateStats();
     this._updateActionBar();
     this._updatePhaseStatus();
     if (this.eng.state?.gameOver) this._gameOver();
@@ -4174,6 +4266,31 @@ class UI {
       playerEl.textContent=side.toUpperCase();
       playerEl.className='pt-desc-player '+side;
     }
+  }
+
+  _updateStats(){
+    const el=document.getElementById('stats-panel'); if(!el||el.style.display==='none')return;
+    const s=this.eng.state; if(!s||!s.stats)return;
+    const{kills,vpHistory}=s.stats;
+    // Kill totals
+    const killRow=(side)=>{
+      const k=kills[side]||{};
+      const total=Object.values(k).reduce((a,b)=>a+b,0);
+      if(!total)return`<span style="color:var(--dim)">—</span>`;
+      return Object.entries(k).map(([t,n])=>`${t}×${n}`).join(' ')+` <b style="color:var(--accent)">(${total})</b>`;
+    };
+    // VP trend: last 5 turns
+    const hist=vpHistory.slice(-5);
+    const trend=hist.map(h=>`T${h.turn}:<span style="color:var(--usa)">${h.usa}</span>/<span style="color:var(--apu)">${h.apu}</span>`).join(' ');
+    // Ceasefire counter
+    const cf=s.ceaseFireCount||0;
+    const cfNote=cf>0?`<div style="color:var(--orbit);margin-top:3px">⏳ Cease-fire: ${cf}/18 turns no VP change</div>`:'';
+    el.innerHTML=`
+      <div style="color:var(--usa);margin-bottom:2px">USA kills: ${killRow('usa')}</div>
+      <div style="color:var(--apu);margin-bottom:4px">APU kills: ${killRow('apu')}</div>
+      ${hist.length?`<div style="color:var(--dim);margin-bottom:2px">VP history: ${trend}</div>`:''}
+      ${cfNote}
+    `;
   }
 
   _updateLog(){
