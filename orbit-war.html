@@ -68,10 +68,10 @@ body{background:var(--bg);color:var(--text);font-family:var(--ui);font-size:13px
 .ai-toggle.apu:hover{background:rgba(64,144,232,.2);color:var(--apu);border-color:rgba(64,144,232,.5)}
 .ai-toggle.apu.on{background:rgba(64,144,232,.28);color:var(--apu);border-color:var(--apu);
   box-shadow:0 0 8px rgba(64,144,232,.35)}
-.ai-countdown{font-family:var(--mono);font-size:11px;display:flex;flex-wrap:nowrap;align-items:center;gap:6px;width:100%;min-width:0}
+.ai-countdown{font-family:var(--mono);font-size:11px;display:flex;flex-wrap:wrap;align-items:center;gap:3px 6px;width:100%}
 .ai-countdown>span{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.ai-countdown>.ai-bar{width:48px;flex-shrink:0;height:4px;background:rgba(255,255,255,.1);border-radius:2px;overflow:hidden}
-.ai-countdown>button{flex-shrink:0}
+.ai-countdown>.ai-bar{width:60px;flex-shrink:0;height:4px;background:rgba(255,255,255,.1);border-radius:2px;overflow:hidden}
+.ai-countdown>button{width:100%;margin-top:1px}
 .vp-d{display:flex;gap:8px;font-family:var(--mono);font-size:12px;white-space:nowrap;flex-shrink:0}
 #vp-u{color:var(--usa)} #vp-a{color:var(--apu)}
 
@@ -107,7 +107,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--ui);font-size:13px
 .up-head.apu{background:rgba(64,144,232,.2);color:var(--apu)}
 .up-stats,.up-wep{font-family:var(--mono);font-size:11px;margin-bottom:3px}
 .up-acts{display:flex;gap:5px;margin-top:6px}
-#action-bar{padding:8px 10px;border-bottom:1px solid var(--border);display:flex;flex-wrap:wrap;gap:5px;height:46px;align-items:center;overflow:hidden;box-sizing:border-box}
+#action-bar{padding:8px 10px;border-bottom:1px solid var(--border);display:flex;flex-wrap:wrap;gap:5px;height:64px;align-items:center;overflow:hidden;box-sizing:border-box}
 #game-log{flex:1;overflow-y:auto;padding:6px 10px;font-family:var(--mono);font-size:10px}
 .log-e{color:var(--dim);padding:1px 0;border-bottom:1px solid rgba(255,255,255,.03);line-height:1.4}
 
