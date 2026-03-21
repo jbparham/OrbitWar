@@ -1759,23 +1759,10 @@ class Engine {
       nuke.destroyed=true; nuke.hex=null;
     });
 
-    // Mines attack all enemies in hex (§9): ATK 6, auto-fires each turn
-    // §9: mines cannot attack on the turn they are placed (moved=true set on placement)
-    this.state.units.filter(u=>u.typeId==='MINE'&&!u.destroyed&&u.hex&&!u.moved).forEach(mine=>{
-      if(mine.destroyed||!mine.hex)return; // guard
-      this.state.units.filter(u=>!u.destroyed&&u.hex&&u.side!==mine.side&&
-        u.hex.q===mine.hex.q&&u.hex.r===mine.hex.r&&u.typeId!=='MINE')
-      .forEach(enemy=>{
-        if(enemy.destroyed)return; // guard: may be destroyed by earlier mine/nuke this pass
-        const res=crt(6,this._effDef(enemy));
-        this._log(`Mine vs ${enemy.type.short}: ${res}`);
-        this._applyResult(res,mine,enemy);
-      });
-    });
-
-    // Missiles auto-fire in same hex (§8): ATK 5, one-shot
+    // Missiles auto-fire in same hex (§8): ATK 5, one-shot — fires BEFORE mines so a
+    // missile landing on a mine hex destroys the mine before it gets to fire back.
     this.state.units.filter(u=>u.typeId==='MISSILE'&&!u.destroyed&&u.hex).forEach(missile=>{
-      if(missile.destroyed||!missile.hex)return; // guard: may have been destroyed by mine this pass
+      if(missile.destroyed||!missile.hex)return; // guard: may have been destroyed by nuke this pass
       const enemies=this.state.units.filter(e=>!e.destroyed&&e.hex&&e.side!==missile.side&&
         e.hex.q===missile.hex.q&&e.hex.r===missile.hex.r);
       if(enemies.length){
@@ -1789,6 +1776,21 @@ class Engine {
         this._log(`${missile.side.toUpperCase()} missile at ring ${getRing(missile.hex)} — no targets`);
       }
       missile.destroyed=true; missile.hex=null;
+    });
+
+    // Mines attack all enemies in hex (§9): ATK 6, auto-fires each turn
+    // §9: mines cannot attack on the turn they are placed (moved=true set on placement)
+    // Mines fire after missiles — a missile aimed at a mine hex destroys it first.
+    this.state.units.filter(u=>u.typeId==='MINE'&&!u.destroyed&&u.hex&&!u.moved).forEach(mine=>{
+      if(mine.destroyed||!mine.hex)return; // guard
+      this.state.units.filter(u=>!u.destroyed&&u.hex&&u.side!==mine.side&&
+        u.hex.q===mine.hex.q&&u.hex.r===mine.hex.r&&u.typeId!=='MINE')
+      .forEach(enemy=>{
+        if(enemy.destroyed)return; // guard: may be destroyed by earlier missile/nuke this pass
+        const res=crt(6,this._effDef(enemy));
+        this._log(`Mine vs ${enemy.type.short}: ${res}`);
+        this._applyResult(res,mine,enemy);
+      });
     });
   }
 
@@ -5611,7 +5613,7 @@ class SpotlightTutorial {
     this.tu.aEwrS = this._place('EWR','apu', 0,-3);   // in USA cone — scoring demo
     this.tu.aMine = this._place('MINE','apu', 2,-4);   // same hex as hk1 — mine demo
     this.tu.aMine.moved = false;                       // established, can fire
-    this.tu.aCjs  = this._place('CJS','apu',-1, 5);
+    this.tu.aCjs  = this._place('CJS','apu',-1,-5);  // ring 6, near USA OWP — jamming demo
 
     this.ren.tutHL = new Set();
     this.ren.render();
@@ -5709,11 +5711,12 @@ class SpotlightTutorial {
               const r=getRing(h); return r>=1&&r<=10&&(h.q!==ow.hex.q||h.r!==ow.hex.r);
             });
             const tgt=cands[Math.floor(cands.length/2)]||{q:ow.hex.q,r:ow.hex.r-2};
-            // Place USA targets scattered around blast zone
+            // Place low-DEF USA targets in blast zone so nuke actually destroys them
+            // EWR DEF 1 vs nuke ATK 5 = diff +4 = DE (HK DEF 3 would only give DR)
             hexesInRange(tgt,1)
               .filter(h=>getRing(h)>=1&&getRing(h)<=10)
               .slice(0,4)
-              .forEach(h=>this._place('HK','usa',h.q,h.r));
+              .forEach(h=>this._place('EWR','usa',h.q,h.r));
             // Fire nuke via OLR
             s.phase='LAUNCH_B'; s.activePlayer='apu';
             eng.resetOLRCounters('apu');
@@ -5736,7 +5739,7 @@ class SpotlightTutorial {
         }),
 
       T('PHASE 7 — MINE COMBAT',
-        `<b>Auto-resolves every turn before normal combat.</b> The APU mine (ATK 6) hits HK-1 (DEF 3) — diff +3 = <em>Defender Eliminated</em>. The missile also auto-fires.`
+        `<b>Auto-resolves every turn before normal combat.</b> The APU mine (ATK 6) hits HK-1 (DEF 3) — diff +3 = <em>Defender Eliminated</em>.`
         + HINT(`If a unit retreats all the way to ring 1 and retreats again, it's pulled into the atmosphere. Watch for the orange <span style="color:#ffaa60">&#9732; Orbital Decay</span> toast — that's a unit lost to ring pressure, not combat. Move outward after retreats to avoid this.`),
         'game-log','left',['hk1','aMine'],
         function(){
@@ -5794,7 +5797,11 @@ class SpotlightTutorial {
           const ow=this.tu.owp;
           if(ow&&!ow.destroyed&&ow.hex&&ow.weapons.missiles>0){
             const cands=hexesInRange(ow.hex,3).filter(h=>getRing(h)>=1&&getRing(h)<=10&&(h.q!==ow.hex.q||h.r!==ow.hex.r));
-            if(cands.length) this.eng.fireOLR(ow.id,'MISSILE',cands[0]);
+            // Aim near APU CJS so the next step demonstrates jamming reliably
+            const cjsHex=this.tu.aCjs?.hex;
+            const nearCJS=cjsHex?cands.filter(h=>hexDist(h,cjsHex)<=2):[];
+            const tgt=nearCJS.length?nearCJS[0]:cands[0];
+            if(tgt) this.eng.fireOLR(ow.id,'MISSILE',tgt);
           }
           this.eng.state.phase='LAUNCH_B'; this.eng.state.activePlayer='apu';
         }),
