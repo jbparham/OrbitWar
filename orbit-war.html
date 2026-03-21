@@ -68,7 +68,10 @@ body{background:var(--bg);color:var(--text);font-family:var(--ui);font-size:13px
 .ai-toggle.apu:hover{background:rgba(64,144,232,.2);color:var(--apu);border-color:rgba(64,144,232,.5)}
 .ai-toggle.apu.on{background:rgba(64,144,232,.28);color:var(--apu);border-color:var(--apu);
   box-shadow:0 0 8px rgba(64,144,232,.35)}
-.ai-countdown{font-family:var(--mono);font-size:11px;display:flex;align-items:center;gap:8px;width:100%}
+.ai-countdown{font-family:var(--mono);font-size:11px;display:flex;flex-wrap:wrap;align-items:center;gap:4px 6px;width:100%}
+.ai-countdown>span{width:100%}
+.ai-countdown>.ai-bar{flex:1;min-width:40px;height:4px;background:rgba(255,255,255,.1);border-radius:2px;overflow:hidden}
+.ai-countdown>button{flex-shrink:0}
 .vp-d{display:flex;gap:8px;font-family:var(--mono);font-size:12px;white-space:nowrap;flex-shrink:0}
 #vp-u{color:var(--usa)} #vp-a{color:var(--apu)}
 
@@ -3337,6 +3340,7 @@ class UI {
     this._aiCountdown=0;   // remaining seconds
     this._aiPhase=null;    // phase currently being counted down
     this._aiInstance=null; // AIPlayer instance (lazy)
+    this._humanControlPhase=null; // phase id where human cancelled AI and took control
     this.eng.on(s=>this._onState(s));
   }
 
@@ -4679,13 +4683,14 @@ class UI {
       const pct=Math.round((this._aiCountdown/5)*100);
       bar.innerHTML=`
         <div class="ai-countdown">
-          <span style="color:${col};white-space:nowrap">🤖 ${label} AI acting in <b>${this._aiCountdown}s</b>…</span>
-          <div style="flex:1;height:4px;background:rgba(255,255,255,.1);border-radius:2px;overflow:hidden">
+          <span style="color:${col}">🤖 ${label} AI acting in <b>${this._aiCountdown}s</b>…</span>
+          <div class="ai-bar">
             <div style="width:${pct}%;height:100%;background:${col};transition:width 1s linear"></div>
           </div>
           <button class="btn-a" id="btn-take-control" style="color:var(--gold);border-color:var(--gold)">✋ Take Control</button>
         </div>`;
       document.getElementById('btn-take-control')?.addEventListener('click',()=>{
+        this._humanControlPhase=this.eng.state?.phase||null;
         this._cancelAICountdown(true);
         this._toast('You have control — AI cancelled for this phase.');
       });
@@ -4694,10 +4699,24 @@ class UI {
 
     const isLaunchPhase=['LAUNCH_A','LAUNCH_B'].includes(s.phase);
     const isMovePhase=['OPT_A','OPT_B'].includes(s.phase);
-    let html=`<button class="btn-a" id="btn-next-phase">Next Phase →</button>`;
 
-    // ── COMBAT: show "Run AI Attacks" button if either side is AI ─
-    if(s.phase==='COMBAT'&&(this._aiSides.usa||this._aiSides.apu)){
+    // Determine whether Next Phase should show:
+    // hide on passive phases (auto-advance) and when all active sides are AI-driven
+    // (unless the human explicitly took control this phase)
+    const activeSide=this._getPhaseActiveSide(s.phase);
+    const fullyAI=activeSide==='both'
+      ? (this._aiSides.usa&&this._aiSides.apu)
+      : activeSide
+        ? this._aiSides[activeSide]
+        : true; // passive phases — no manual input needed
+    const humanControl=this._humanControlPhase===s.phase;
+    const showNextPhase=!fullyAI||humanControl;
+
+    let html=showNextPhase?`<button class="btn-a" id="btn-next-phase">Next Phase →</button>`:'';
+
+    // ── COMBAT: show "Run AI Attacks" only when exactly one side is AI (human still advances manually)
+    const oneSideAI=s.phase==='COMBAT'&&(this._aiSides.usa||this._aiSides.apu)&&!(this._aiSides.usa&&this._aiSides.apu);
+    if(oneSideAI){
       const aiLabel=[...(this._aiSides.usa?['USA']:[]),...(this._aiSides.apu?['APU']:[])].join('+');
       html+=`<button class="btn-a" id="btn-ai-combat" style="color:var(--orbit);border-color:var(--orbit)">🤖 ${aiLabel} Attacks</button>`;
     }
@@ -4712,6 +4731,7 @@ class UI {
     bar.innerHTML=html;
     document.getElementById('btn-next-phase')?.addEventListener('click',()=>{
       this._cancelAICountdown(false); // human manually advanced — cancel any pending AI
+      this._humanControlPhase=null;
       this._cancelMode();
       this._hideLaunchPanel();
       this._moveHistory=[];   // clear undo history on phase advance
