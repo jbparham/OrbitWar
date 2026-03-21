@@ -1979,6 +1979,8 @@ class Renderer {
     this._ZOOM_MIN=0.35; this._ZOOM_MAX=3.5;
     this._orbAnim=null;       // active orbital movement animation state
     this._lastOrbTrails=null; // last orbTrails ref we started an animation for
+    this._earthRotAnim=null;  // active earth-rotation animation state
+    this._lastEarthRot=0;     // earthRot value as of last render (to detect changes)
     this._setupEvents();
     this.resize();
   }
@@ -2046,6 +2048,13 @@ class Renderer {
   render(){
     const ctx=this.ctx,w=this.cv.width,h=this.cv.height;
     ctx.fillStyle='#050810'; ctx.fillRect(0,0,w,h);
+    // Auto-start earth-rotation animation when earthRot changes
+    if(this.eng.state){
+      const curRot=this.eng.state.earthRot||0;
+      if(curRot!==this._lastEarthRot&&!this._earthRotAnim){
+        this.startEarthRotAnim(this._lastEarthRot,curRot);
+      }
+    }
     this._drawStars(); this._drawCones(); this._drawGrid(); this._drawOrbits(); this._drawEarth();
     if(this.launchTargetRing) this._drawLaunchRing(this.launchTargetRing);
     if(this.olrLauncher) this._drawOLRRange(this.olrLauncher);
@@ -2385,9 +2394,10 @@ class Renderer {
 
   _drawCones(){
     const ctx=this.ctx; if(!this.eng.state)return;
-    const rot=(this.eng.state.earthRot||0)*60;
+    // Use animated angle during rotation, otherwise snap to current value
+    const rot=this._earthRotAnim ? this._earthRotAnim.curDeg : (this.eng.state.earthRot||0)*60;
     const mr=this.sz*this.MAX*2;
-    const ep=this.h2p({q:0,r:0}); // Earth centre — accounts for pan & zoom
+    const ep=this.h2p({q:0,r:0});
     const draw=(deg,col)=>{
       const a=deg*Math.PI/180;
       ctx.save();ctx.globalAlpha=.12;ctx.fillStyle=col;
@@ -2397,6 +2407,33 @@ class Renderer {
     };
     draw((270+rot)%360,'#e84040');
     draw((90+rot)%360,'#4090e8');
+
+    // Expanding pulse ring + label around Earth during rotation
+    if(this._earthRotAnim){
+      const t=this._earthRotAnim.t;
+      // Alpha: fade in fast, hold, fade out toward end
+      const alpha=t<0.12 ? t/0.12 : t>0.72 ? (1-t)/0.28 : 1;
+      // Ring expands from ~1× to ~3× Earth radius
+      const earthR=this.sz*0.82;
+      const r=earthR*(1.2+t*2.2);
+      ctx.save();
+      ctx.globalAlpha=alpha*0.7;
+      ctx.strokeStyle='#ffe066';
+      ctx.lineWidth=Math.max(1.5, this.sz*0.1);
+      ctx.setLineDash([6,4]);
+      ctx.beginPath();ctx.arc(ep.x,ep.y,r,0,Math.PI*2);ctx.stroke();
+      ctx.setLineDash([]);
+      // "CONE SHIFT" label — fixed distance above Earth, not following the ring
+      if(t<0.85){
+        ctx.globalAlpha=alpha*0.95;
+        ctx.fillStyle='#ffe066';
+        const fs=Math.max(10, this.sz*0.45);
+        ctx.font=`bold ${fs}px monospace`;
+        ctx.textAlign='center';ctx.textBaseline='middle';
+        ctx.fillText('🌍 CONE SHIFT',ep.x,ep.y-earthR*2.6);
+      }
+      ctx.restore();
+    }
   }
 
   _drawGrid(){
@@ -2517,6 +2554,33 @@ class Renderer {
       requestAnimationFrame(ts2=>this._orbAnimLoop(ts2));
     } else {
       this._orbAnim=null;
+      this.render();
+    }
+  }
+
+  // Start earth-rotation cone animation: fromRot/toRot are integer earthRot values (0–5)
+  startEarthRotAnim(fromRot, toRot, dur=1400){
+    const fromDeg=fromRot*60;
+    const toDeg=fromDeg+60; // rotation always advances +60°
+    this._lastEarthRot=toRot; // prevent re-triggering on next render
+    this._earthRotAnim={fromDeg, toDeg, curDeg:fromDeg, t:0, start:performance.now(), dur};
+    requestAnimationFrame(ts=>this._earthRotAnimLoop(ts));
+  }
+
+  // rAF loop for earth-rotation animation
+  _earthRotAnimLoop(ts){
+    if(!this._earthRotAnim) return;
+    const {fromDeg,toDeg,start,dur}=this._earthRotAnim;
+    const t=Math.min((ts-start)/dur,1);
+    // Smooth cubic ease-out so rotation decelerates naturally as it settles
+    const ease=1-Math.pow(1-t,3);
+    this._earthRotAnim.t=t;
+    this._earthRotAnim.curDeg=fromDeg+(toDeg-fromDeg)*ease;
+    this.render();
+    if(t<1){
+      requestAnimationFrame(ts2=>this._earthRotAnimLoop(ts2));
+    } else {
+      this._earthRotAnim=null;
       this.render();
     }
   }
@@ -5472,7 +5536,7 @@ class Demo {
         const ring1Units=s.units.filter(u=>!u.destroyed&&u.hex&&getRing(u.hex)===1);
         let note=`<b>Orbital sweep</b> — all units drift counterclockwise. Inner rings are faster; watch the animated arcs. `;
         if(ring1Units.length>0) note+=`<b>${ring1Units.length} unit(s) at ring 1</b> — atmospheric decay risk on retreat! `;
-        if(t>1&&(t)%4===0) note+=`⚠ Earth rotates this turn — scoring cones will shift! `;
+        if(t>1&&(t-1)%4===0) note+=`🌍 <b>Earth just rotated</b> — scoring cones shifted 60°! `;  // earthRot increments when (turn-1)%4===0
         return note;
       }
       case 'LAUNCH_A': {
