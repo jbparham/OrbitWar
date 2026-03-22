@@ -1,4 +1,4 @@
-# Orbit War — Complete Reference
+# Orbit War — The Digital Frontier
 
 A browser-based digital adaptation of *Orbit War* © 1992 Steve Jackson Games, design by Wallace Wang.
 Two players command satellite fleets in near-Earth orbit, firing missiles, laying mines, and accumulating
