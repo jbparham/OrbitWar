@@ -171,7 +171,7 @@ Each turn runs through 9 phases in order. The web game enforces the sequence aut
 |--------|:---:|-------|
 | **Mine** | 6 | Stationary. Auto-fires during Mine Combat every turn against all enemies in its hex. Cannot fire the turn it is placed (orange **NEW** badge). |
 | **Missile** | 5 | Launched via OLR. Auto-fires during Mine Combat phase on the following turn, then is removed. 50% chance of being jammed by a CJS in its path. |
-| **Nuke** | — | Launched via OLR. Detonates during Mine Combat phase. **Blast radius 1** — **auto-kills** every unit (friend and foe) within 1 hex, no dice roll. The first nuke fired costs **−5 VP** to the firing player. |
+| **Nuke** | — | Launched via OLR. Detonates during Mine Combat phase. **Blast radius 1** — **auto-kills** every unit (friend and foe) within 1 hex, no dice roll. The first nuke fired costs **−10 VP** to the firing player. |
 | **3-MIRV** | 5 | Board game: splits into 3 independent warheads. Web game: fires as a single nuke. |
 | **7-MIRV** | 5 | Board game: splits into 7 independent warheads. Web game: fires as a single nuke. |
 | **ELR** | — | Earth-Launched Rocket. Carries one satellite to rings 1–3. Max 3 per turn per side. Costs 0.5 pts each. |
@@ -289,7 +289,7 @@ Missiles (ATK 5) fired via OLR arrive at their target hex and auto-fire during t
 
 **OLR Nukes:** Placed via OLR, detonate during Mine Combat phase. Blast radius 1 — **auto-kills every unit** (friend and foe) within 1 hex. No dice roll — position is everything.
 
-**First-strike penalty:** The **first nuke detonated in the game** (by either side, either type) costs the firing player **−5 VP**. All subsequent nukes in the same game cost 0 VP. The penalty applies once per game, not once per player.
+**First-strike penalty:** The **first nuke detonated in the game** (by either side, either type) costs the firing player **−10 VP**. All subsequent nukes in the same game cost 0 VP. The penalty applies once per game, not once per player.
 
 **Suicide Nukes (§18):** Any satellite except SF and Shuttles may be designated as suicide (+1 pt at setup). Detonation has blast radius 1, **auto-kills** all units friend and foe in range. The satellite is removed and the opponent scores its kill VP. The first-strike penalty applies to the first suicide detonation just as it does to OLR nukes.
 
@@ -312,7 +312,7 @@ VP are awarded at the end of every turn during the Scoring phase.
 | EWR destroyed | +3 to destroyer |
 | Shuttle destroyed | +3 to destroyer |
 | OWP, HK, or SF destroyed | +1 to destroyer |
-| First nuke detonated in the game | −5 to firing side |
+| First nuke detonated in the game | −10 to firing side |
 | Subsequent nukes detonated | 0 |
 | Unit forced to atmospheric decay (ring-1 retreat) | +kill VP to opponent |
 
@@ -368,7 +368,7 @@ Use this as a mid-game reminder. Click any rule for full context above.
 | New satellites | Skip Optional Movement on their arrival turn. |
 | OWP restriction | Cannot fire OLRs **and** attack in Normal Combat on the same turn (§17). |
 | Resupply restriction | A unit being resupplied cannot attack that turn. |
-| First-strike penalty | Only the **first** nuke detonated in the game costs −5 VP to the firer. All subsequent nukes are free. |
+| First-strike penalty | Only the **first** nuke detonated in the game costs −10 VP to the firer. All subsequent nukes are free. |
 | Suicide nukes | Blast hits all units in radius — including your own. Position carefully. |
 | CJS jamming | Any CJS within radius 2 jams EWRs to 0 VP and jams missiles at 50% (whether friend or foe). |
 | Atmospheric decay | A unit forced to retreat from ring 1 is removed. The **opponent scores kill VP** (same as a combat kill). |

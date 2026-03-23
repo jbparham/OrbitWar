@@ -942,7 +942,7 @@ const PHASES = [
   {id:'OPT_B',      name:'Player B Move',     short:'Move B',   icon:'➡',  player:'b',
    desc:'Player B moves each satellite up to its MA in any direction. +1 free hex toward Earth (gravity assist). Units launched this turn cannot move. Click a unit to select it, then click a green destination hex.'},
   {id:'MINE_CBT',   name:'Mine Combat',       short:'Mines',    icon:'💥',  player:'both',
-   desc:'Resolves AUTOMATICALLY when you advance to this phase. Mines (ATK 6) and missiles (ATK 5) use the CRT. Nukes AUTO-KILL all units in blast radius (−5VP first strike). Mines cannot fire on the turn they were placed.'},
+   desc:'Resolves AUTOMATICALLY when you advance to this phase. Mines (ATK 6) and missiles (ATK 5) use the CRT. Nukes AUTO-KILL all units in blast radius (−10VP first strike). Mines cannot fire on the turn they were placed.'},
   {id:'COMBAT',     name:'Normal Combat',     short:'Combat',   icon:'⚔',  player:'both',
    desc:'Both players attack. Click any of your units with ATK > 0, then click ⚔ Attack and click the enemy in the same hex. Each unit attacks once only. CJS in range: +1 DEF friendly, −1 DEF enemy. Advance phase when done.'},
   {id:'SCORING',    name:'Scoring',           short:'Score',    icon:'★',  player:'both',
@@ -1824,7 +1824,7 @@ class Engine {
 
   _mineCombat(){
     // Nukes placed by OLR auto-detonate: blast radius 1, AUTO-KILL all units (friend & foe)
-    // within 1 hex — no CRT roll. Owner loses 5VP on first strike.
+    // within 1 hex — no CRT roll. Owner loses 10VP on first strike.
     this.state.units.filter(u=>u.typeId==='NUKE'&&!u.destroyed&&u.hex).forEach(nuke=>{
       if(nuke.destroyed||!nuke.hex)return; // guard: may have been destroyed earlier this pass
       const blastHexes=hexesInRange(nuke.hex,1).filter(h=>getRing(h)>=1&&getRing(h)<=10);
@@ -1832,9 +1832,9 @@ class Engine {
         !e.destroyed&&e.hex&&e.id!==nuke.id&&e.typeId!=='NUKE'&&
         blastHexes.some(h=>h.q===e.hex.q&&h.r===e.hex.r));
       const firstStrike=!this.state.firstNukeFired;
-      if(firstStrike) this.state.vp[nuke.side]=Math.max(0,this.state.vp[nuke.side]-5);
+      if(firstStrike) this.state.vp[nuke.side]=Math.max(0,this.state.vp[nuke.side]-10);
       this.state.firstNukeFired=true;
-      this._log(`${nuke.side.toUpperCase()} NUKE detonates at ring ${getRing(nuke.hex)}! Blast radius 1 — ${targets.length} unit(s) in range${firstStrike?' — first strike: −5VP to owner':''}`);
+      this._log(`${nuke.side.toUpperCase()} NUKE detonates at ring ${getRing(nuke.hex)}! Blast radius 1 — ${targets.length} unit(s) in range${firstStrike?' — first strike: −10VP to owner':''}`);
       if(!this.state.nukeEvents) this.state.nukeEvents=[];
       this.state.nukeEvents.push({hex:{...nuke.hex},blastHexes:blastHexes.map(h=>({...h}))});
       targets.forEach(t=>{
@@ -1982,9 +1982,9 @@ class Engine {
     const u=this._get(uid); if(!u||!u.suicide)return{ok:false};
     const opp=u.side==='usa'?'apu':'usa';
     const firstStrike=!this.state.firstNukeFired;
-    if(firstStrike) this.state.vp[u.side]=Math.max(0,this.state.vp[u.side]-5);
+    if(firstStrike) this.state.vp[u.side]=Math.max(0,this.state.vp[u.side]-10);
     this.state.firstNukeFired=true;
-    this._log(`${u.side.toUpperCase()} ${u.type.short} SUICIDE DETONATION at ring ${getRing(u.hex)}! ATK 6 blast radius 1 — friendly fire${firstStrike?' — first strike: −5VP to owner':''}`);
+    this._log(`${u.side.toUpperCase()} ${u.type.short} SUICIDE DETONATION at ring ${getRing(u.hex)}! Blast radius 1 — friendly fire${firstStrike?' — first strike: −10VP to owner':''}`);
     const blastHexes=hexesInRange(u.hex,1).filter(h=>getRing(h)>=1&&getRing(h)<=10);
     if(!this.state.nukeEvents) this.state.nukeEvents=[];
     this.state.nukeEvents.push({hex:{...u.hex},blastHexes:blastHexes.map(h=>({...h}))});
@@ -4075,7 +4075,7 @@ class UI {
       </div>
       <div style="padding:10px 16px;background:rgba(200,168,0,.04);border-top:1px solid var(--border);font-size:10px;color:var(--dim)">
         ⚠ Missiles have no physical counters — they last one turn only and must be tracked here throughout the game.
-        Nukes must be launched via OLR and cost you 5 VP if detonated first.
+        Nukes must be launched via OLR and cost you 10 VP if detonated first.
       </div>
       <div class="dlg-ft">
         <button class="btn-s" id="bk-clear">Clear All</button>
@@ -4524,7 +4524,7 @@ class UI {
     const payloads=[];
     if(w.mines>0)    payloads.push({type:'MINE',   label:`Mine`,    detail:`${w.mines} remaining`, cls:'btn-launch-olr-mine'});
     if(w.missiles>0) payloads.push({type:'MISSILE', label:`Missile`, detail:`${w.missiles} remaining`, cls:'btn-launch-olr-msl'});
-    if(w.nukes>0&&!launcher.nukeOLRFired) payloads.push({type:'NUKE', label:`Nuke`,    detail:`${w.nukes} remaining · −5VP first strike`, cls:'btn-launch-olr-nuke'});
+    if(w.nukes>0&&!launcher.nukeOLRFired) payloads.push({type:'NUKE', label:`Nuke`,    detail:`${w.nukes} remaining · −10VP first strike`, cls:'btn-launch-olr-nuke'});
 
     const rows=payloads.map(p=>`
       <button class="${p.cls} btn-olr-pick" data-payload="${p.type}"
@@ -4825,7 +4825,7 @@ class UI {
       this._updateActionBar();
     });
     document.getElementById('btn-det')?.addEventListener('click',()=>{
-      if(confirm('Detonate suicide nuke? AUTO-KILLS all units within 1 hex — including friendlies. First strike costs 5VP.')){
+      if(confirm('Detonate suicide nuke? AUTO-KILLS all units within 1 hex — including friendlies. First strike costs 10VP.')){
         this.eng.detonateSuicide(u.id);
         this._hideUnitPanel(); this.sel=null; this.ren.setSelected(null);
       }
@@ -5752,7 +5752,7 @@ class UI {
       {title:'Weapons',units:[
         {id:'MINE',   name:'Mine', full:'Mine',           stats:'6-1-0', note:'Stationary. Auto-attacks all enemies in hex.'},
         {id:'MISSILE',name:'Msl',  full:'Missile',        stats:'5-0-2', note:'One turn only. Range 5. No counters — track on paper.'},
-        {id:'NUKE',   name:'Nuke', full:'Nuclear Warhead',stats:'6-−-−', note:'Via OLR only. First detonation costs −5VP.'},
+        {id:'NUKE',   name:'Nuke', full:'Nuclear Warhead',stats:'−-−-−', note:'Via OLR only. Auto-kills blast radius 1. First detonation costs −10VP.'},
         {id:'MIRV3',  name:'3MRV', full:'3-MIRV',         stats:'5×3',   note:'3 warheads. Counts as 1 in cargo (max 10).'},
         {id:'MIRV7',  name:'7MRV', full:'7-MIRV',         stats:'5×7',   note:'7 warheads. Counts as 1 in cargo (max 10).'},
       ]},
@@ -5782,7 +5782,7 @@ class UI {
       <div class="legend-section-title">Victory Points</div>
       <div class="legend-note">Per turn: EWR in enemy cone +3 · COM/CJS over friendly +2</div>
       <div class="legend-note">Kill VPs: SS=10 · EWR/Shuttle=3 · OWP/HK/SF=1 · COM/CJS=0</div>
-      <div class="legend-note">Nuke/Suicide detonation: −5VP to owner on first strike only. Win = 150VP lead (or turn limit).</div>
+      <div class="legend-note">Nuke/Suicide detonation: auto-kills blast radius 1. −10VP to owner on first strike only. Win = 150VP lead (or turn limit).</div>
     </div>`;
 
     container.innerHTML=html;
@@ -6137,9 +6137,9 @@ class SpotlightTutorial {
         }),
 
       T('NUKES — AREA BLAST, HIGH RISK',
-        `OWPs that carry <b>nukes</b> fire them via OLR (range 3). Unlike missiles, a nuke has a <b>blast radius of 1 hex</b> and <b>auto-kills every unit</b> (friend and foe) in the target hex and all 6 adjacent hexes — no dice roll. <b>Only the first nuke fired in the game costs −5 VP</b> (first-strike penalty). Once that threshold is crossed, further nukes carry no VP penalty for either side. OWPs marked ☢ can also <b>suicide-detonate</b> during Optional Movement: auto-kills everything in blast radius including the OWP itself.`
+        `OWPs that carry <b>nukes</b> fire them via OLR (range 3). Unlike missiles, a nuke has a <b>blast radius of 1 hex</b> and <b>auto-kills every unit</b> (friend and foe) in the target hex and all 6 adjacent hexes — no dice roll. <b>Only the first nuke fired in the game costs −10 VP</b> (first-strike penalty). Once that threshold is crossed, further nukes carry no VP penalty for either side. OWPs marked ☢ can also <b>suicide-detonate</b> during Optional Movement: auto-kills everything in blast radius including the OWP itself.`
         + `<em style="display:block;margin-top:6px;color:var(--accent)">☢ Watch the board — a live detonation is playing now.</em>`
-        + HINT(`The first-strike penalty makes the <em>decision to open nuclear warfare</em> costly — but once one side crosses that line, the gloves are off. If the enemy has already fired a nuke, your subsequent nukes are free. A ring-1 pile-up is an ideal target. Never fire when your own units are adjacent to the blast zone. The penalty was reduced to −5VP to make nuclear play a live option mid-game.`),
+        + HINT(`The first-strike penalty makes the <em>decision to open nuclear warfare</em> costly — but once one side crosses that line, the gloves are off. If the enemy has already fired a nuke, your subsequent nukes are free. A ring-1 pile-up is an ideal target. Never fire when your own units are adjacent to the blast zone. Nukes auto-kill the entire blast radius — no dice roll — so the −10VP penalty is the real cost of going nuclear.`),
         'board','right',['aOwp'],
         function(){
           const eng=this.eng; const s=eng.state;
@@ -6368,7 +6368,7 @@ class AIPlayer {
     eng.getOLRLaunchers(side).forEach(launcher=>{
       let fired=0;
       // Nuke: only fire if VP can absorb penalty and expected gain is positive
-      if(fired<3&&launcher.weapons?.nukes>0&&myVP>=6){
+      if(fired<3&&launcher.weapons?.nukes>0&&myVP>=11){
         const nukeHex=this._bestNukeTarget(launcher.hex,side);
         if(nukeHex){
           const r=eng.fireOLR(launcher.id,'NUKE',nukeHex);
@@ -6422,7 +6422,7 @@ class AIPlayer {
     // OWP/EWR/COM/CJS have MOV 1-2 but usually hold position → moderate escape.
     const escP={HK:0.65,SHUTTLE:0.55,OWP:0.35,EWR:0.25,COM:0.25,CJS:0.25,SF:0.15,SS:0,MINE:0,SUPPLY:0};
     const blast=hexesInRange(tgt,1).filter(h=>getRing(h)>=1&&getRing(h)<=10);
-    let score=eng.state.firstNukeFired?0:-5; // first-strike penalty only once
+    let score=eng.state.firstNukeFired?0:-10; // first-strike penalty only once
     eng.state.units
       .filter(u=>!u.destroyed&&u.hex&&u.typeId!=='NUKE'&&
         blast.some(h=>h.q===u.hex.q&&h.r===u.hex.r))
@@ -6611,7 +6611,7 @@ class AIPlayer {
 
     // Suicide nuke: OWP detonates if blast net score justifies losing the OWP
     const myVP=eng.state.vp[side];
-    if(myVP>=7){
+    if(myVP>=12){
       eng.state.units
         .filter(u=>u.side===side&&!u.destroyed&&u.hex&&u.typeId==='OWP'&&
           u.weapons?.nukes>0&&!u.moved)
@@ -7042,7 +7042,7 @@ class Demo {
         if(queue.length) note+=`${queue.length} unit${queue.length>1?'s':''} queued for ELR insertion. `;
         if(deep.filter(u=>!u.launched).length) note+=`${deep.filter(u=>!u.launched).length} deep-space unit(s) inbound. `;
         if(missiles>0||nukes>0) note+=`${owps.length} OWP${owps.length>1?'s':''} \u2014 ${missiles} missile${missiles!==1?'s':''}${nukes>0?` + <b>${nukes} nuke${nukes>1?'s':''} \u2622</b>`:''}. `;
-        if(nukes>0) note+=`<em>Nuclear ordnance active \u2014 blast radius 1, <b>auto-kills</b>${this.eng.state?.firstNukeFired?'':` \u2014 \u22125VP first-strike penalty`}.</em>`;
+        if(nukes>0) note+=`<em>Nuclear ordnance active \u2014 blast radius 1, <b>auto-kills</b>${this.eng.state?.firstNukeFired?'':` \u2014 \u221210VP first-strike penalty`}.</em>`;
         return note;
       }
       case 'OPT_A': {
@@ -7085,7 +7085,7 @@ class Demo {
           let txt=`\u2622 <b>NUCLEAR DETONATION \u2014 ring ${ring}!</b> `;
           if(ffKills.length) txt+=`<b>${ffKills.length} ${nukerSide.toUpperCase()} unit${ffKills.length>1?'s':''} destroyed by FRIENDLY FIRE!</b> `;
           if(enemyKills.length) txt+=`${enemyKills.length} ${enemySide.toUpperCase()} unit${enemyKills.length>1?'s':''} eliminated. `;
-          txt+=`Owner pays <b>\u22125VP</b> (first strike).`;
+          txt+=`Owner pays <b>\u221210VP</b> (first strike).`;
           if(jammed.length) txt+=` CJS jammed ${jammed.length} other missile${jammed.length>1?'s':''}.`;
           return txt;
         }
