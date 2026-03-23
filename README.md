@@ -171,7 +171,7 @@ Each turn runs through 9 phases in order. The web game enforces the sequence aut
 |--------|:---:|-------|
 | **Mine** | 6 | Stationary. Auto-fires during Mine Combat every turn against all enemies in its hex. Cannot fire the turn it is placed (orange **NEW** badge). |
 | **Missile** | 5 | Launched via OLR. Auto-fires during Mine Combat phase on the following turn, then is removed. 50% chance of being jammed by a CJS in its path. |
-| **Nuke** | 6 | Launched via OLR. Detonates during Mine Combat phase. **Blast radius 1** — hits all units (friend and foe) within 1 hex. The first nuke fired costs **−5 VP** to the firing player. |
+| **Nuke** | — | Launched via OLR. Detonates during Mine Combat phase. **Blast radius 1** — **auto-kills** every unit (friend and foe) within 1 hex, no dice roll. The first nuke fired costs **−5 VP** to the firing player. |
 | **3-MIRV** | 5 | Board game: splits into 3 independent warheads. Web game: fires as a single nuke. |
 | **7-MIRV** | 5 | Board game: splits into 7 independent warheads. Web game: fires as a single nuke. |
 | **ELR** | — | Earth-Launched Rocket. Carries one satellite to rings 1–3. Max 3 per turn per side. Costs 0.5 pts each. |
@@ -287,11 +287,11 @@ Missiles (ATK 5) fired via OLR arrive at their target hex and auto-fire during t
 
 ### Nukes and Suicide Nukes
 
-**OLR Nukes:** Placed via OLR, detonate during Mine Combat phase. Blast radius 1 — every unit (friend and foe) within 1 hex is a separate target, each resolved with its own 2d6 roll.
+**OLR Nukes:** Placed via OLR, detonate during Mine Combat phase. Blast radius 1 — **auto-kills every unit** (friend and foe) within 1 hex. No dice roll — position is everything.
 
 **First-strike penalty:** The **first nuke detonated in the game** (by either side, either type) costs the firing player **−5 VP**. All subsequent nukes in the same game cost 0 VP. The penalty applies once per game, not once per player.
 
-**Suicide Nukes (§18):** Any satellite except SF and Shuttles may be designated as suicide (+1 pt at setup). Detonation has ATK 6, blast radius 1, hits all units friend and foe in range. The satellite is removed and the opponent scores its kill VP. The first-strike penalty applies to the first suicide detonation just as it does to OLR nukes.
+**Suicide Nukes (§18):** Any satellite except SF and Shuttles may be designated as suicide (+1 pt at setup). Detonation has blast radius 1, **auto-kills** all units friend and foe in range. The satellite is removed and the opponent scores its kill VP. The first-strike penalty applies to the first suicide detonation just as it does to OLR nukes.
 
 > VP cannot drop below 0.
 
