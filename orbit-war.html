@@ -275,19 +275,26 @@ body{background:var(--bg);color:var(--text);font-family:var(--ui);font-size:13px
 .dice-res.usa{color:var(--usa)} .dice-res.apu{color:var(--apu)}
 
 /* ─── COMBAT DIALOG ───────────────────────────────────── */
-.cbt-dlg{padding:28px}
-.cbt-dlg h2{font-family:var(--title);font-size:15px;color:var(--orbit);letter-spacing:2px;margin-bottom:20px}
-.cbt-sum{display:flex;align-items:center;gap:20px;margin-bottom:16px}
-.cbt-unit{flex:1;padding:14px;background:var(--bg);border:1px solid var(--border);text-align:center}
-.cbt-vs{font-family:var(--title);color:var(--dim);font-size:13px}
-.cbt-name{font-size:12px;margin:7px 0 4px}
-.cbt-str{font-family:var(--mono);font-size:20px;color:var(--accent)}
-.cbt-calc{font-family:var(--mono);font-size:13px;margin-bottom:14px;color:var(--dim)}
-.cbt-res{font-family:var(--title);font-size:20px;letter-spacing:2px;padding:14px;
-  text-align:center;border:1px solid;margin-bottom:6px}
-.r-DE,.r-AE{color:var(--danger);border-color:var(--danger);background:rgba(255,68,34,.1)}
-.r-EX{color:var(--gold);border-color:var(--gold);background:rgba(255,200,64,.1)}
-.r-DR,.r-AR{color:var(--text);border-color:var(--border)}
+.cbt-stack{display:flex;gap:10px;margin-bottom:10px}
+.cbt-stack-side{flex:1;background:var(--bg);border:1px solid var(--border);padding:10px 12px}
+.cbt-stack-title{font-family:var(--mono);font-size:9px;letter-spacing:2px;color:var(--dim);
+  text-transform:uppercase;margin-bottom:6px;padding-bottom:4px;border-bottom:1px solid rgba(255,255,255,.06)}
+.cbt-stack-unit{display:flex;align-items:center;gap:6px;padding:4px 0;cursor:pointer;border-radius:3px}
+.cbt-stack-unit:hover{background:rgba(255,255,255,.04)}
+.cbt-stack-unit input{accent-color:var(--orbit);cursor:pointer}
+.cbt-stack-total{font-family:var(--mono);font-size:18px;font-weight:700;color:var(--accent);
+  text-align:center;margin-top:8px;padding-top:6px;border-top:1px solid rgba(255,255,255,.08)}
+.cbt-diff-row{font-family:var(--mono);font-size:12px;color:var(--dim);text-align:center;
+  margin:8px 0 10px;padding:8px;background:var(--bg);border:1px solid var(--border)}
+.cbt-dice{display:flex;align-items:center;gap:12px;justify-content:center;margin:12px 0}
+.cbt-die{width:44px;height:44px;border:2px solid var(--border);border-radius:8px;
+  display:flex;align-items:center;justify-content:center;font-family:var(--mono);
+  font-size:22px;font-weight:700;color:var(--dim);background:var(--bg);transition:all .3s}
+.cbt-die.rolled{border-color:var(--orbit);color:var(--orbit);background:rgba(200,168,0,.08)}
+.cbt-res{font-family:var(--title);font-size:17px;letter-spacing:2px;padding:12px;
+  text-align:center;border:1px solid;margin:8px 0 4px}
+.r-HIT{color:var(--danger);border-color:var(--danger);background:rgba(255,68,34,.1)}
+.r-MISS{color:var(--dim);border-color:var(--border)}
 
 .btn-launch-olr-mine{background:rgba(255,107,0,.12);color:#ff8844;border:1px solid rgba(255,107,0,.4);
   padding:2px 7px;font-family:var(--mono);font-size:9px;cursor:pointer}
@@ -733,7 +740,7 @@ function mulberry32(seed){
     return((t^t>>>14)>>>0)/4294967296;
   };
 }
-const DEMO_SEED=3006; // Tournament winner: 6 lead changes, nuke on turn 3, 56 units destroyed
+const DEMO_SEED=6024; // Tournament winner (50-game sim, 2d6 mechanics): 7 lead changes, tied turn 6, USA comeback
 
 // ─── Precomputed math constants ──────────────────────────────
 Math.SQRT3   = Math.sqrt(3);
@@ -942,14 +949,31 @@ const PHASES = [
 ];
 
 // CRT: differential -> result
-// ── Combat Results Table (differential → result code) ───────
-const CRT_TABLE = {'-6':'AE','-5':'AE','-4':'AE','-3':'AR','-2':'AR','-1':'EX',
-  '0':'EX','1':'DR','2':'DR','3':'DE','4':'DE','5':'DE','6':'DE'};
-
-function crt(atk, def) {
-  const diff = Math.max(-6, Math.min(6, atk - def));
-  return CRT_TABLE[String(diff)] || 'DE';
+// ── Combat Result Table — Physical 2d6 Dice Roll Rules ──────────────
+// Source: original Orbit War rulebook CRT. Roll 2d6; if sum ≥ threshold → HIT (Defender Eliminated).
+// Differential = total ATK − total DEF (after CJS modifiers)
+function crtThreshold(diff){
+  if(diff>=5)return 5;  // 83.3%
+  if(diff===4)return 6; // 72.2%
+  if(diff===3)return 7; // 58.3%
+  if(diff===2)return 8; // 41.6%
+  if(diff===1)return 9; // 27.7%
+  if(diff===0)return 10;// 16.6%
+  if(diff>=-2)return 11;// 8.3%
+  return 13;            // impossible (max 2d6=12) for diff ≤ -3
 }
+function crtOdds(diff){
+  const t=crtThreshold(diff);
+  // 2d6 distribution: index = sum, value = ways to roll that sum
+  const cnt=[0,0,1,2,3,4,5,6,5,4,3,2,1];
+  let h=0; for(let i=Math.max(2,t);i<=12;i++) h+=cnt[i]||0;
+  return Math.round(h/36*1000)/10; // % e.g. 83.3
+}
+function roll2d6(){
+  return{d1:1+Math.floor(Math.random()*6),d2:1+Math.floor(Math.random()*6)};
+}
+// Legacy helper for AI scoring (deterministic estimate, no dice)
+function crt(atk,def){ return crtOdds(atk-def)>0?'DE':'MISS'; }
 
 // Hex math (axial coords)
 // ── Hex grid maths ───────────────────────────────────────────
@@ -1331,7 +1355,9 @@ class Engine {
       case'COMBAT':
         // Reset per-unit attack flags at start of combat phase (§6: each unit attacks once)
         s.units.forEach(u=>{ u.attackedThisTurn=false; });
-        this._log('Normal Combat — both players may attack. Each unit attacks once.');
+        // Alternating combat: the side that goes first this turn attacks first
+        s.combatTurn=s.playerA;
+        this._log(`Normal Combat — ${s.playerA.toUpperCase()} attacks first (alternating turns).`);
         break;
       case'SCORING':
         this._score();
@@ -1655,23 +1681,60 @@ class Engine {
   // COMBAT RESOLUTION
   // ─────────────────────────────────────────────────────────
 
-  combat(atkId,defId){
+  // Single-unit combat — validates then delegates to _doCombat.
+  // Accepts optional pre-rolled {d1,d2} from the UI dialog (two-step roll → apply).
+  combat(atkId,defId,diceRoll){
+    const s=this.state;
     const a=this._get(atkId),d=this._get(defId);
     if(!a||!d)return{ok:false,err:'Not found'};
     if(a.side===d.side)return{ok:false,err:'Same side'};
     if(!a.hex||!d.hex||a.hex.q!==d.hex.q||a.hex.r!==d.hex.r)return{ok:false,err:'Not same hex'};
-    if(a.attackedThisTurn)return{ok:false,err:`${a.type.short} already attacked this phase (§6: each unit attacks once)`};
-    // OWP mutual exclusion: cannot attack on a turn it already fired OLRs (§17)
-    if(a.typeId==='OWP'&&(a.olrsFiredThisTurn||0)>0)return{ok:false,err:'OWP cannot attack on the same turn it launched rockets (§17)'};
-    const atkStr=a.type.atk;
-    const defStr=this._effDef(d);
-    const res=crt(atkStr,defStr);
-    this._applyResult(res,a,d);
-    a.attackedThisTurn=true;
-    // Mark OWP so it can't fire OLRs this turn either
-    if(a.typeId==='OWP')a.attackedThisTurn=true;
-    this._log(`${a.side.toUpperCase()} ${a.type.short} vs ${d.side.toUpperCase()} ${d.type.short}: ATK ${atkStr}−DEF ${defStr}=diff ${atkStr-defStr} → ${res}`);
-    this._emit(); return{ok:true,res,atkStr,defStr};
+    if(a.attackedThisTurn)return{ok:false,err:`${a.type.short} already attacked this phase (§6)`};
+    if(a.typeId==='OWP'&&(a.olrsFiredThisTurn||0)>0)return{ok:false,err:'OWP cannot attack after firing OLRs (§17)'};
+    if(s.combatTurn&&a.side!==s.combatTurn)return{ok:false,err:`It's ${s.combatTurn.toUpperCase()}'s turn to attack`};
+    return this._doCombat([atkId],[defId],diceRoll);
+  }
+
+  // Stacked combat — multiple units on each side combine ATK/DEF for one roll.
+  // atkIds / defIds must all be in the same hex; all attackers must be eligible.
+  stackedCombat(atkIds,defIds,diceRoll){
+    const s=this.state;
+    if(!atkIds||!atkIds.length||!defIds||!defIds.length)return{ok:false,err:'No units selected'};
+    const atks=atkIds.map(id=>this._get(id)).filter(u=>u&&!u.destroyed&&u.hex);
+    const defs=defIds.map(id=>this._get(id)).filter(u=>u&&!u.destroyed&&u.hex);
+    if(!atks.length||!defs.length)return{ok:false,err:'Units not found'};
+    if(atks[0].side===defs[0].side)return{ok:false,err:'Same side'};
+    const h=atks[0].hex;
+    if(!atks.every(u=>u.hex.q===h.q&&u.hex.r===h.r))return{ok:false,err:'Attackers not in same hex'};
+    if(!defs.every(u=>u.hex.q===h.q&&u.hex.r===h.r))return{ok:false,err:'Defenders not in same hex'};
+    const bad=atks.find(u=>u.attackedThisTurn||(u.typeId==='OWP'&&(u.olrsFiredThisTurn||0)>0));
+    if(bad)return{ok:false,err:`${bad.type.short} already attacked or fired OLRs`};
+    if(s.combatTurn&&atks[0].side!==s.combatTurn)return{ok:false,err:`It's ${s.combatTurn.toUpperCase()}'s turn to attack`};
+    return this._doCombat(atkIds,defIds,diceRoll);
+  }
+
+  // Core dice-based combat resolution shared by combat() and stackedCombat().
+  // diceRoll: optional {d1,d2} pre-rolled by the UI (two-step show-then-apply).
+  // If omitted, rolls internally (for AI and auto-combat).
+  _doCombat(atkIds,defIds,diceRoll){
+    const s=this.state;
+    const atks=atkIds.map(id=>this._get(id)).filter(Boolean);
+    const defs=defIds.map(id=>this._get(id)).filter(Boolean);
+    const totalAtk=atks.reduce((sum,u)=>sum+u.type.atk,0);
+    const totalDef=defs.reduce((sum,u)=>sum+this._effDef(u),0);
+    const diff=totalAtk-totalDef;
+    const threshold=crtThreshold(diff);
+    const {d1,d2}=diceRoll||roll2d6();
+    const rollSum=d1+d2;
+    const hit=rollSum>=threshold;
+    if(hit) defs.forEach(u=>this._destroy(u,atks[0].side));
+    atks.forEach(u=>{ u.attackedThisTurn=true; });
+    if(s.combatTurn) s.combatTurn=s.combatTurn==='usa'?'apu':'usa';
+    const al=atks.map(u=>u.type.short).join('+'), dl=defs.map(u=>u.type.short).join('+');
+    const sign=diff>0?'+':'';
+    this._log(`${atks[0].side.toUpperCase()} ${al} (ATK ${totalAtk}) vs ${defs[0].side.toUpperCase()} ${dl} (DEF ${totalDef}): diff ${sign}${diff}, need ${threshold > 12 ? '—' : threshold + '+' }, rolled ${d1}+${d2}=${rollSum} → ${hit?'HIT (DE)':'MISS'}`);
+    this._emit();
+    return{ok:true,hit,d1,d2,roll:rollSum,threshold,totalAtk,totalDef,diff};
   }
 
   _effDef(u){
@@ -1759,9 +1822,12 @@ class Engine {
       this.state.nukeEvents.push({hex:{...nuke.hex},blastHexes:blastHexes.map(h=>({...h}))});
       targets.forEach(t=>{
         if(t.destroyed)return; // guard: may have been destroyed earlier in this blast
-        const res=crt(5,this._effDef(t));
-        this._log(`Nuke blast vs ${t.side.toUpperCase()} ${t.type.short}: ${res}`);
-        this._applyResult(res,nuke,t);
+        const def=this._effDef(t);
+        const diff=5-def;
+        const thr=crtThreshold(diff);
+        const {d1,d2}=roll2d6(); const roll=d1+d2; const hit=roll>=thr;
+        this._log(`Nuke blast vs ${t.side.toUpperCase()} ${t.type.short}: ATK 5 − DEF ${def}=diff ${diff>0?'+':''}${diff}, need ${thr}+, rolled ${d1}+${d2}=${roll} → ${hit?'HIT':'MISS'}`);
+        if(hit)this._destroy(t,nuke.side);
       });
       nuke.destroyed=true; nuke.hex=null;
     });
@@ -1775,9 +1841,13 @@ class Engine {
       if(enemies.length){
         enemies.forEach(enemy=>{
           if(enemy.destroyed)return;
-          const res=crt(5,this._effDef(enemy));
-          this._log(`Missile vs ${enemy.type.short}: ${res}`);
-          this._applyResult(res,missile,enemy);
+          const def=this._effDef(enemy);
+          const diff=5-def;
+          const thr=crtThreshold(diff);
+          const {d1,d2}=roll2d6(); const roll=d1+d2;
+          const hit=roll>=thr;
+          this._log(`Missile vs ${enemy.type.short}: ATK 5 − DEF ${def}=diff ${diff>0?'+':''}${diff}, need ${thr}+, rolled ${d1}+${d2}=${roll} → ${hit?'HIT':'MISS'}`);
+          if(hit)this._destroy(enemy,missile.side);
         });
       } else {
         this._log(`${missile.side.toUpperCase()} missile at ring ${getRing(missile.hex)} — no targets`);
@@ -1794,9 +1864,13 @@ class Engine {
         u.hex.q===mine.hex.q&&u.hex.r===mine.hex.r&&u.typeId!=='MINE')
       .forEach(enemy=>{
         if(enemy.destroyed)return; // guard: may be destroyed by earlier missile/nuke this pass
-        const res=crt(6,this._effDef(enemy));
-        this._log(`Mine vs ${enemy.type.short}: ${res}`);
-        this._applyResult(res,mine,enemy);
+        const def=this._effDef(enemy);
+        const diff=6-def;
+        const thr=crtThreshold(diff);
+        const {d1,d2}=roll2d6(); const roll=d1+d2;
+        const hit=roll>=thr;
+        this._log(`Mine vs ${enemy.type.short}: ATK 6 − DEF ${def}=diff ${diff>0?'+':''}${diff}, need ${thr}+, rolled ${d1}+${d2}=${roll} → ${hit?'HIT':'MISS'}`);
+        if(hit)this._destroy(enemy,mine.side);
       });
     });
   }
@@ -1902,9 +1976,12 @@ class Engine {
     this.state.units.filter(x=>!x.destroyed&&x.hex&&x.id!==uid&&
       blastHexes.some(h=>h.q===x.hex.q&&h.r===x.hex.r))
       .forEach(t=>{
-        const res=crt(5,this._effDef(t));
-        this._log(`Suicide blast vs ${t.side.toUpperCase()} ${t.type.short}: ${res}`);
-        this._applyResult(res,u,t);
+        const def=this._effDef(t);
+        const diff=5-def;
+        const thr=crtThreshold(diff);
+        const {d1,d2}=roll2d6(); const roll=d1+d2; const hit=roll>=thr;
+        this._log(`Suicide blast vs ${t.side.toUpperCase()} ${t.type.short}: ATK 5 − DEF ${def}=diff ${diff>0?'+':''}${diff}, need ${thr}+, rolled ${d1}+${d2}=${roll} → ${hit?'HIT':'MISS'}`);
+        if(hit)this._destroy(t,u.side);
       });
     // Attacker is always destroyed — opponent scores VP for the kill
     this._destroy(u,opp);
@@ -2167,18 +2244,20 @@ class Renderer {
   _drawCombatTargets(){
     const s=this.eng.state;
     if(!s||s.phase!=='COMBAT')return;
+    const ct=s.combatTurn; // only highlight the side whose turn it is
     // Build per-hex unit sets (exclude mines — they don't participate in normal combat)
     const byHex={};
     s.units.filter(u=>!u.destroyed&&u.hex&&u.typeId!=='MINE').forEach(u=>{
       const k=`${u.hex.q},${u.hex.r}`;
       if(!byHex[k])byHex[k]={hex:u.hex,sides:new Set(),hasAttacker:false};
       byHex[k].sides.add(u.side);
-      const ready=u.type.atk>0&&!u.attackedThisTurn&&
+      // Only count as an attacker if it's their combat turn (or combatTurn is null)
+      const ready=(!ct||u.side===ct)&&u.type.atk>0&&!u.attackedThisTurn&&
                   !(u.typeId==='OWP'&&(u.olrsFiredThisTurn||0)>0)&&
                   !u.resupplying;
       if(ready)byHex[k].hasAttacker=true;
     });
-    // Global hint: light red on any hex where both sides present and an attacker is ready
+    // Global hint: light red on any hex where both sides present and active side has attacker
     Object.values(byHex).forEach(({hex,sides,hasAttacker})=>{
       if(sides.size>=2&&hasAttacker)
         this._hlHex(hex,'rgba(255,70,30,.11)','rgba(255,80,40,.55)',1.2);
@@ -2186,7 +2265,8 @@ class Renderer {
     // Brighter highlight when attacker is selected and has valid targets
     const sel=this.sel;
     if(sel&&sel.hex&&!sel.destroyed&&sel.type.atk>0&&!sel.attackedThisTurn&&
-       !sel.resupplying&&!(sel.typeId==='OWP'&&(sel.olrsFiredThisTurn||0)>0)){
+       !sel.resupplying&&!(sel.typeId==='OWP'&&(sel.olrsFiredThisTurn||0)>0)&&
+       (!ct||sel.side===ct)){
       const enemies=s.units.filter(u=>!u.destroyed&&u.hex&&u.side!==sel.side&&
         u.hex.q===sel.hex.q&&u.hex.r===sel.hex.r&&u.typeId!=='MINE');
       if(enemies.length)
@@ -4223,16 +4303,16 @@ class UI {
       return;
     }
 
-    // ATTACK MODE: target click
+    // ATTACK MODE: target click (attacker and defender must be in the same hex)
     if(this.mode==='attack'&&this.sel){
+      if(!this.sel.hex||hex.q!==this.sel.hex.q||hex.r!==this.sel.hex.r){
+        this._toast('Can only attack enemies in the same hex as your unit');
+        return;
+      }
       const enemies=units.filter(u=>u.side!==this.sel.side&&!u.destroyed&&u.typeId!=='MINE');
       if(!enemies.length){this._toast('No enemy units here'); return;}
       const a=this.sel; this._cancelMode();
-      if(enemies.length===1){
-        const d=enemies[0];
-        const atkStr=a.type.atk, defStr=this.eng._effDef(d);
-        this._showCombat(a,d,atkStr,defStr,crt(atkStr,defStr));
-      } else { this._showTargetPicker(a,enemies); }
+      this._showStackedCombat(a.hex, a.side);
       return;
     }
 
@@ -4248,14 +4328,17 @@ class UI {
       const pri={SS:0,OWP:1,HK:2,CJS:3,EWR:4,COM:5,SHUTTLE:6,SUPPLY:7};
       // Both sides present and exactly one has a ready attacker → shortcut to combat dialog
       if(usaPresent&&apuPresent){
-        const atkSide=usaReady.length&&!apuReady.length?'usa':apuReady.length&&!usaReady.length?'apu':null;
+        // Respect combatTurn — only auto-trigger for the side whose turn it is
+        const ct=s.combatTurn;
+        const atkSide=ct
+          ?(ct==='usa'&&usaReady.length?'usa':ct==='apu'&&apuReady.length?'apu':null)
+          :(usaReady.length&&!apuReady.length?'usa':apuReady.length&&!usaReady.length?'apu':null);
         if(atkSide){
           const atk=(atkSide==='usa'?usaReady:apuReady)[0];
           const enemies=units.filter(u=>u.side!==atkSide&&!u.destroyed&&!u.faceDown&&u.typeId!=='MINE')
                              .sort((a,b)=>(pri[a.typeId]??9)-(pri[b.typeId]??9));
           if(enemies.length){
-            if(enemies.length===1){const d=enemies[0];this._showCombat(atk,d,atk.type.atk,this.eng._effDef(d),crt(atk.type.atk,this.eng._effDef(d)));}
-            else this._showTargetPicker(atk,enemies);
+            this._showStackedCombat(hex,atkSide);
             return;
           }
         }
@@ -4275,7 +4358,7 @@ class UI {
     // SELECT
     if(units.length){
       const selectable=isCombatPhase
-        ? units.filter(u=>!u.faceDown&&!u.destroyed)
+        ? units.filter(u=>!u.faceDown&&!u.destroyed&&(!s.combatTurn||u.side===s.combatTurn))
                .sort((a,b)=>{
                  // Prefer units that can still attack so they surface first on click
                  const aReady=a.type.atk>0&&!a.attackedThisTurn?1:0;
@@ -4406,75 +4489,132 @@ class UI {
   }
 
   // ═══════════════════════════════════════════════════════
-  // TARGET PICKER — multi-enemy hex
+  // STACKED COMBAT DIALOG — 2d6 roll, multi-unit stacking
   // ═══════════════════════════════════════════════════════
-  _showTargetPicker(attacker, enemies){
-    const rows=enemies.map(d=>{
-      const defStr=this.eng._effDef(d);
-      const diff=attacker.type.atk-defStr;
-      const res=crt(attacker.type.atk,defStr);
-      return`<div class="launch-unit-row" style="cursor:pointer;padding:6px 8px" 
-        id="tgt-${d.id}" data-did="${d.id}">
-        <span class="badge ${d.side}">${d.side.toUpperCase()}</span>
-        <span style="font-family:var(--mono);font-size:11px;margin-left:6px">${d.type.name}</span>
-        <span style="font-family:var(--mono);font-size:10px;color:var(--dim);margin-left:6px">DEF:${defStr}</span>
-        <span style="font-family:var(--mono);font-size:10px;color:var(--accent);margin-left:auto">diff ${diff>0?'+':''}${diff} → ${res}</span>
-      </div>`;
-    }).join('');
+  _showStackedCombat(hex, atkSide){
+    const eng=this.eng, s=eng.state;
+    const defSide=atkSide==='usa'?'apu':'usa';
+    const allInHex=s.units.filter(u=>!u.destroyed&&u.hex&&u.hex.q===hex.q&&u.hex.r===hex.r&&u.typeId!=='MINE');
+    const atkUnits=allInHex.filter(u=>u.side===atkSide);
+    const defUnits=allInHex.filter(u=>u.side===defSide);
+    if(!atkUnits.length||!defUnits.length){this._toast('No combatants in hex');return;}
+    const canAtk=u=>u.type.atk>0&&!u.attackedThisTurn&&!(u.typeId==='OWP'&&(u.olrsFiredThisTurn||0)>0)&&!u.resupplying;
+    const mkAtkRow=u=>{
+      const ok=canAtk(u);
+      return`<label class="cbt-stack-unit" style="opacity:${ok?1:.4}">
+        <input type="checkbox" class="cbt-chk-a" data-id="${u.id}" data-val="${u.type.atk}" ${ok?'checked':''} ${ok?'':'disabled'}>
+        <span class="badge ${u.side}">${u.side.toUpperCase()}</span>
+        <span style="font-family:var(--mono);font-size:11px;flex:1">${u.type.name}</span>
+        <span style="font-family:var(--mono);font-size:12px;color:var(--accent)">ATK:${u.type.atk}</span>
+      </label>`;
+    };
+    const mkDefRow=u=>{
+      const eff=eng._effDef(u);
+      const note=eff!==u.type.def?` <span style="font-size:9px;color:var(--dim)">(CJS→${eff})</span>`:'';
+      return`<label class="cbt-stack-unit">
+        <input type="checkbox" class="cbt-chk-d" data-id="${u.id}" data-val="${eff}" checked>
+        <span class="badge ${u.side}">${u.side.toUpperCase()}</span>
+        <span style="font-family:var(--mono);font-size:11px;flex:1">${u.type.name}${note}</span>
+        <span style="font-family:var(--mono);font-size:12px;color:var(--accent)">DEF:${eff}</span>
+      </label>`;
+    };
     this._openDlg(`
       <div class="dlg-hd">
-        <span class="badge ${attacker.side}">${attacker.side.toUpperCase()}</span>
-        <h2>Choose Target</h2>
-        <span style="color:var(--dim);font-size:10px;margin-left:auto">${attacker.type.name} ATK:${attacker.type.atk}</span>
+        <h2>COMBAT</h2>
+        <span style="color:var(--dim);font-size:11px">Ring ${getRing(hex)}</span>
       </div>
-      <div style="padding:10px 12px">${rows}</div>
-      <div class="dlg-ft"><button class="btn-s" id="tp-cancel">Cancel</button></div>
+      <div style="padding:12px 16px">
+        <div class="cbt-stack">
+          <div class="cbt-stack-side">
+            <div class="cbt-stack-title">⚔ ${atkSide.toUpperCase()} attacking</div>
+            ${atkUnits.map(mkAtkRow).join('')}
+            <div class="cbt-stack-total" id="sc-atk">ATK: 0</div>
+          </div>
+          <div class="cbt-stack-side">
+            <div class="cbt-stack-title">🛡 ${defSide.toUpperCase()} defending</div>
+            ${defUnits.map(mkDefRow).join('')}
+            <div class="cbt-stack-total" id="sc-def">DEF: 0</div>
+          </div>
+        </div>
+        <div class="cbt-diff-row" id="sc-diff">Select units above to compute odds</div>
+        <div class="cbt-dice" id="sc-dice" style="display:none">
+          <div class="cbt-die" id="sc-d1">?</div>
+          <span style="font-family:var(--mono);font-size:18px;color:var(--dim)">+</span>
+          <div class="cbt-die" id="sc-d2">?</div>
+          <span style="font-family:var(--mono);font-size:18px;color:var(--dim)">=</span>
+          <span style="font-family:var(--mono);font-size:24px;font-weight:700;color:var(--accent)" id="sc-sum">?</span>
+        </div>
+        <div class="cbt-res" id="sc-res" style="display:none"></div>
+      </div>
+      <div class="dlg-ft">
+        <button class="btn-s" id="sc-cancel">Cancel</button>
+        <button class="btn-p" id="sc-roll">🎲 Roll 2d6</button>
+        <button class="btn-p" id="sc-apply" style="display:none">Apply →</button>
+      </div>
     `);
-    document.getElementById('tp-cancel').addEventListener('click',()=>this._closeDlg());
-    enemies.forEach(d=>{
-      document.getElementById('tgt-'+d.id)?.addEventListener('click',()=>{
-        const defStr=this.eng._effDef(d);
-        const res=crt(attacker.type.atk,defStr);
-        this._closeDlg();
-        this._showCombat(attacker,d,attacker.type.atk,defStr,res);
-      });
-    });
-  }
 
-  // ═══════════════════════════════════════════════════════
-  // COMBAT DIALOG — resolve attacks
-  // ═══════════════════════════════════════════════════════
-  _showCombat(a,d,atkStr,defStr,res){
-    const resDesc={AE:'Attacker Eliminated',DE:'Defender Eliminated',EX:'Exchange — both destroyed',AR:'Attacker Retreats',DR:'Defender Retreats'}[res]||res;
-    this._openDlg(`
-      <div class="cbt-dlg">
-        <h2>Combat Resolution</h2>
-        <div class="cbt-sum">
-          <div class="cbt-unit">
-            <span class="badge ${a.side}">${a.side.toUpperCase()}</span>
-            <div class="cbt-name">${a.type.name}</div>
-            <div class="cbt-str">ATK: ${atkStr}</div>
-          </div>
-          <div class="cbt-vs">VS</div>
-          <div class="cbt-unit">
-            <span class="badge ${d.side}">${d.side.toUpperCase()}</span>
-            <div class="cbt-name">${d.type.name}</div>
-            <div class="cbt-str">DEF: ${defStr}${defStr>d.type.def?' (CJS+)':defStr<d.type.def?' (CJS−)':''}</div>
-          </div>
-        </div>
-        <div class="cbt-calc">Differential: ${atkStr} − ${defStr} = <strong>${atkStr-defStr}</strong></div>
-        <div class="cbt-res r-${res}">${res} — ${resDesc}</div>
-        <div class="dlg-ft">
-          <button class="btn-s" id="cbt-cancel">Cancel</button>
-          <button class="btn-p" id="cbt-apply" data-a="${a.id}" data-d="${d.id}">Apply Result</button>
-        </div>
-      </div>
-    `);
-    document.getElementById('cbt-cancel').addEventListener('click',()=>this._closeDlg());
-    document.getElementById('cbt-apply').addEventListener('click',e=>{
-      const r=this.eng.combat(e.target.dataset.a,e.target.dataset.d);
-      if(!r.ok){this._closeDlg();this._toast(r.err);return;}
-      this._closeDlg(); this.ren.render(); this._updateUI();
+    let pendingRoll=null;
+
+    const recalc=()=>{
+      const aVals=[...document.querySelectorAll('.cbt-chk-a:checked')].map(e=>+e.dataset.val);
+      const dVals=[...document.querySelectorAll('.cbt-chk-d:checked')].map(e=>+e.dataset.val);
+      const ta=aVals.reduce((s,v)=>s+v,0), td=dVals.reduce((s,v)=>s+v,0);
+      document.getElementById('sc-atk').textContent=`ATK: ${ta}`;
+      document.getElementById('sc-def').textContent=`DEF: ${td}`;
+      const diff=ta-td, sign=diff>0?'+':'';
+      const thr=crtThreshold(diff), odds=crtOdds(diff);
+      const thrStr=thr>12?'impossible':thr+'+';
+      document.getElementById('sc-diff').textContent=
+        `Diff: ${sign}${diff} — Need ${thrStr} on 2d6 — Odds: ${thr>12?0:odds}%`;
+      // Reset roll display when selection changes
+      document.getElementById('sc-dice').style.display='none';
+      document.getElementById('sc-res').style.display='none';
+      document.getElementById('sc-roll').style.display='';
+      document.getElementById('sc-apply').style.display='none';
+      pendingRoll=null;
+    };
+    document.querySelectorAll('.cbt-chk-a,.cbt-chk-d').forEach(c=>c.addEventListener('change',recalc));
+    recalc();
+
+    document.getElementById('sc-cancel').addEventListener('click',()=>this._closeDlg());
+
+    document.getElementById('sc-roll').addEventListener('click',()=>{
+      const atkIds=[...document.querySelectorAll('.cbt-chk-a:checked')].map(e=>e.dataset.id);
+      const defIds=[...document.querySelectorAll('.cbt-chk-d:checked')].map(e=>e.dataset.id);
+      if(!atkIds.length||!defIds.length){this._toast('Select at least one attacker and one defender');return;}
+      const ta=[...document.querySelectorAll('.cbt-chk-a:checked')].reduce((s,e)=>s+(+e.dataset.val),0);
+      const td=[...document.querySelectorAll('.cbt-chk-d:checked')].reduce((s,e)=>s+(+e.dataset.val),0);
+      const diff=ta-td, thr=crtThreshold(diff);
+      const {d1,d2}=roll2d6(); const sum=d1+d2; const hit=sum>=thr;
+      pendingRoll={atkIds,defIds,d1,d2,hit};
+      // Show dice
+      const dRow=document.getElementById('sc-dice'); dRow.style.display='flex';
+      const d1El=document.getElementById('sc-d1'),d2El=document.getElementById('sc-d2');
+      d1El.textContent=d1; d2El.textContent=d2; document.getElementById('sc-sum').textContent=sum;
+      d1El.classList.add('rolled'); d2El.classList.add('rolled');
+      // Show result
+      const res=document.getElementById('sc-res'); res.style.display='block';
+      res.className=`cbt-res r-${hit?'HIT':'MISS'}`;
+      res.textContent=hit
+        ?`🎯 HIT! ${sum} ≥ ${thr>12?'—':thr} — Defender eliminated`
+        :`✗ MISS — ${sum} < ${thr>12?'—':thr} — Attack fails`;
+      document.getElementById('sc-roll').style.display='none';
+      document.getElementById('sc-apply').style.display='';
+      // Freeze checkboxes
+      document.querySelectorAll('.cbt-chk-a,.cbt-chk-d').forEach(c=>{c.disabled=true;});
+    });
+
+    document.getElementById('sc-apply').addEventListener('click',()=>{
+      if(!pendingRoll)return;
+      const r=eng.stackedCombat(pendingRoll.atkIds,pendingRoll.defIds,{d1:pendingRoll.d1,d2:pendingRoll.d2});
+      if(!r.ok){this._toast(r.err);this._closeDlg();return;}
+      this._closeDlg();
+      this._toast(pendingRoll.hit
+        ?`HIT! Rolled ${pendingRoll.d1}+${pendingRoll.d2}=${pendingRoll.d1+pendingRoll.d2} — defender eliminated`
+        :`MISS — rolled ${pendingRoll.d1}+${pendingRoll.d2}=${pendingRoll.d1+pendingRoll.d2}`);
+      this._cancelMode(); this._hideUnitPanel(); this.sel=null; this.ren.setSelected(null);
+      this.ren.render(); this._updateUI();
+      this._afterCombatStep();
     });
   }
 
@@ -4982,11 +5122,19 @@ class UI {
 
     let html=showNextPhase?`<button class="btn-a" id="btn-next-phase">Next Phase →</button>`:'';
 
-    // ── COMBAT: show "Run AI Attacks" only when exactly one side is AI (human still advances manually)
-    const oneSideAI=s.phase==='COMBAT'&&(this._aiSides.usa||this._aiSides.apu)&&!(this._aiSides.usa&&this._aiSides.apu);
-    if(oneSideAI){
-      const aiLabel=[...(this._aiSides.usa?['USA']:[]),...(this._aiSides.apu?['APU']:[])].join('+');
-      html+=`<button class="btn-a" id="btn-ai-combat" style="color:var(--orbit);border-color:var(--orbit)">🤖 ${aiLabel} Attacks</button>`;
+    // ── COMBAT: alternating turn indicator + Pass button
+    if(s.phase==='COMBAT'){
+      const ct=s.combatTurn;
+      if(ct){
+        const col=ct==='usa'?'var(--usa)':'var(--apu)';
+        html+=`<span style="font-family:var(--mono);font-size:11px;color:${col};margin-right:4px">⚔ ${ct.toUpperCase()} to attack</span>`;
+        if(!this._aiSides[ct])
+          html+=`<button class="btn-a" id="btn-pass-combat" style="color:var(--dim);border-color:var(--dim)">Pass →</button>`;
+        else
+          html+=`<span style="font-family:var(--mono);font-size:10px;color:var(--dim)">AI attacking…</span>`;
+      } else {
+        html+=`<span style="font-family:var(--mono);font-size:11px;color:var(--dim)">Combat complete</span>`;
+      }
     }
     if(this.mode==='move')   html+=`<button class="btn-a on" id="btn-cancel-mode">✕ Cancel Move</button>`;
     if(this.mode==='attack') html+=`<button class="btn-a on" id="btn-cancel-mode">✕ Cancel Attack</button>`;
@@ -5039,14 +5187,14 @@ class UI {
       this.ren.render(); this._updateUI();
     });
 
-    // "Run AI Attacks" for COMBAT when one or both sides are AI
-    document.getElementById('btn-ai-combat')?.addEventListener('click',()=>{
-      if(!this._aiInstance) this._aiInstance=new AIPlayer(this.eng);
-      this.eng.state.units.forEach(u=>u.attackedThisTurn=false);
-      if(this._aiSides.usa) this._aiInstance._aiCombat('usa');
-      if(this._aiSides.apu) this._aiInstance._aiCombat('apu');
-      this._toast('AI combat executed. Click Next Phase → when done.');
+    // Pass combat turn — human skips remaining attacks, hands turn to the other side
+    document.getElementById('btn-pass-combat')?.addEventListener('click',()=>{
+      const s=this.eng.state;
+      if(!s||s.phase!=='COMBAT'||!s.combatTurn)return;
+      s.combatTurn=s.combatTurn==='usa'?'apu':'usa';
+      this._cancelMode(); this._hideUnitPanel(); this.sel=null; this.ren.setSelected(null);
       this.ren.render(); this._updateUI();
+      this._afterCombatStep();
     });
 
     // Show/hide launch panel based on phase
@@ -5105,8 +5253,13 @@ class UI {
     const activeSide=this._getPhaseActiveSide(phase);
     if(!activeSide)return;
     if(activeSide==='both'){
-      // Auto-run COMBAT only when BOTH sides are AI
-      if(this._aiSides.usa&&this._aiSides.apu) this._startAICountdown(phase,'both');
+      if(this._aiSides.usa&&this._aiSides.apu){
+        // Both AI — use countdown → _executeAI alternating loop
+        this._startAICountdown(phase,'both');
+      } else if(s.combatTurn&&this._aiSides[s.combatTurn]&&!this._combatAIBusy&&!this._aiExecuting){
+        // Mixed human+AI — AI has the first (or current) combat turn → kick off one attack
+        this._aiOneCombatStep(s.combatTurn);
+      }
       return;
     }
     if(this._aiSides[activeSide]) this._startAICountdown(phase,activeSide);
@@ -5134,6 +5287,69 @@ class UI {
     if(rerender) this._updateActionBar();
   }
 
+  // ─── Alternating Combat helpers ──────────────────────────
+
+  // Returns true if `side` has at least one unit that can attack an enemy in the same hex
+  _hasAttackers(side){
+    const s=this.eng.state;
+    return s.units.some(a=>
+      a.side===side&&!a.destroyed&&a.hex&&a.type.atk>0&&!a.attackedThisTurn&&
+      !(a.typeId==='OWP'&&(a.olrsFiredThisTurn||0)>0)&&!a.resupplying&&
+      s.units.some(e=>!e.destroyed&&e.hex&&e.side!==side&&e.typeId!=='MINE'&&
+        e.hex.q===a.hex.q&&e.hex.r===a.hex.r)
+    );
+  }
+
+  // Called after every combat attack (human or AI): auto-skip exhausted sides,
+  // trigger AI if it's an AI side's turn, or end the combat phase when both are done.
+  _afterCombatStep(){
+    const s=this.eng.state;
+    if(!s||s.phase!=='COMBAT') return;
+    // Auto-skip any side that has no remaining attackers
+    let skips=0;
+    while(s.combatTurn&&!this._hasAttackers(s.combatTurn)&&skips<2){
+      s.combatTurn=s.combatTurn==='usa'?'apu':'usa'; skips++;
+    }
+    if(skips>=2||(s.combatTurn&&!this._hasAttackers(s.combatTurn)))
+      s.combatTurn=null; // both sides exhausted — combat complete
+    this._updateUI(); this.ren.render();
+    if(!s.combatTurn){
+      // Both done — auto-advance if fully AI, otherwise human clicks Next Phase
+      if(this._aiSides.usa&&this._aiSides.apu) this._maybeAutoAdvance();
+      return;
+    }
+    // If it's now an AI side's turn, run one attack
+    if(this._aiSides[s.combatTurn]) this._aiOneCombatStep(s.combatTurn);
+  }
+
+  // Execute one AI attack for `side` during alternating combat, then hand back via _afterCombatStep.
+  // Uses _combatAIBusy to prevent re-entrant calls during the async delay window.
+  _aiOneCombatStep(side){
+    if(this._combatAIBusy) return;
+    const s=this.eng.state;
+    if(!s||s.phase!=='COMBAT'||s.combatTurn!==side) return;
+    this._combatAIBusy=true;
+    this._aiExecuting=true;
+    const pri={SS:0,OWP:1,HK:2,CJS:3,EWR:4,COM:5,SHUTTLE:6,SUPPLY:7};
+    const atk=s.units.find(u=>
+      u.side===side&&!u.destroyed&&u.hex&&u.type.atk>0&&!u.attackedThisTurn&&
+      !(u.typeId==='OWP'&&(u.olrsFiredThisTurn||0)>0)&&!u.resupplying&&
+      s.units.some(e=>!e.destroyed&&e.hex&&e.side!==side&&e.typeId!=='MINE'&&
+        e.hex.q===u.hex.q&&e.hex.r===u.hex.r)
+    );
+    if(atk){
+      const targets=s.units.filter(e=>
+        !e.destroyed&&e.hex&&e.side!==side&&e.typeId!=='MINE'&&
+        e.hex.q===atk.hex.q&&e.hex.r===atk.hex.r
+      ).sort((a,b)=>(pri[a.typeId]??9)-(pri[b.typeId]??9));
+      if(targets.length) this.eng.combat(atk.id,targets[0].id);
+    }
+    this._aiExecuting=false;
+    this.ren.render(); this._updateUI();
+    // Brief pause so the human can see the AI's move before the next action
+    setTimeout(()=>{ this._combatAIBusy=false; this._afterCombatStep(); },400);
+  }
+
   _executeAI(phase,side){
     // Guard: block _checkAIPhase re-entry while AI actions fire _emit() callbacks
     this._aiExecuting=true;
@@ -5150,10 +5366,35 @@ class UI {
         case 'OPT_A': case 'OPT_B':
           if(this._aiSides[side]) ai._aiMove(side);
           break;
-        case 'COMBAT':
-          if(this._aiSides.usa) ai._aiCombat('usa');
-          if(this._aiSides.apu) ai._aiCombat('apu');
+        case 'COMBAT':{
+          // Alternating combat: run one attack per side per iteration until both are done
+          const s=this.eng.state;
+          const pri={SS:0,OWP:1,HK:2,CJS:3,EWR:4,COM:5,SHUTTLE:6,SUPPLY:7};
+          let safety=0;
+          while(s.combatTurn&&safety++<200){
+            const side=s.combatTurn;
+            if(!this._aiSides[side]) break; // human side — stop and let them play
+            const atk=s.units.find(u=>
+              u.side===side&&!u.destroyed&&u.hex&&u.type.atk>0&&!u.attackedThisTurn&&
+              !(u.typeId==='OWP'&&(u.olrsFiredThisTurn||0)>0)&&!u.resupplying&&
+              s.units.some(e=>!e.destroyed&&e.hex&&e.side!==side&&e.typeId!=='MINE'&&
+                e.hex.q===u.hex.q&&e.hex.r===u.hex.r)
+            );
+            if(!atk){
+              // No valid attacker this side — skip to other
+              const other=side==='usa'?'apu':'usa';
+              if(!this._hasAttackers(other)){s.combatTurn=null;break;}
+              s.combatTurn=other; continue;
+            }
+            const targets=s.units.filter(e=>
+              !e.destroyed&&e.hex&&e.side!==side&&e.typeId!=='MINE'&&
+              e.hex.q===atk.hex.q&&e.hex.r===atk.hex.r
+            ).sort((a,b)=>(pri[a.typeId]??9)-(pri[b.typeId]??9));
+            if(!targets.length){s.combatTurn=side==='usa'?'apu':'usa';continue;}
+            this.eng.combat(atk.id,targets[0].id);
+          }
           break;
+        }
       }
     } catch(e){ console.warn('AI execution error:',e); }
     // Force a render so launch/move trails are painted before phase advances and clears them.
@@ -5971,18 +6212,19 @@ class AIPlayer {
           if(r.ok)fired++;
         }
       }
-      // Missiles: fire at enemies, ring-1 denial, or closest target
-      while(fired<3){
+      // Missiles: fire at enemies in range, or ring-1 denial — never at empty hexes
+      while(fired<3&&launcher.weapons?.missiles>0){
         const inRange=hexesInRange(launcher.hex,3).filter(h=>{
           const r=getRing(h);return r>=1&&r<=10&&(h.q!==launcher.hex.q||h.r!==launcher.hex.r);
         });
-        const hot=inRange.filter(h=>eng.getAt(h).some(u=>u.side!==side&&!u.destroyed));
-        const ring1=inRange.filter(h=>getRing(h)===1);
+        // Priority 1: hex containing an enemy unit
+        const hot=inRange.filter(h=>eng.getAt(h).some(u=>u.side!==side&&!u.destroyed&&u.typeId!=='MINE'));
+        // Priority 2: ring-1 area denial (only if ring 1 is reachable from this launcher)
+        const ring1=inRange.filter(h=>getRing(h)===1&&eng.getAt(h).length===0);
         const dest=hot.length?hot[Math.floor(Math.random()*hot.length)]
-          :ring1.length?ring1[Math.floor(Math.random()*ring1.length)]
-          :enemies.length?this._closest(launcher.hex,inRange):null;
+          :ring1.length?ring1[0]
+          :null; // no valid target — save missiles
         if(!dest)break;
-        if(!launcher.weapons?.missiles)break;
         const r=eng.fireOLR(launcher.id,'MISSILE',dest);
         if(r.ok)fired++;else break;
       }
