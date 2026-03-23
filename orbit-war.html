@@ -560,7 +560,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--ui);font-size:13px
       <div class="sc-card" id="btn-total-war">
         <h3>TOTAL WAR</h3>
         <div class="pts">100 vs 100 pts</div>
-        <p>Balanced World War III scenario. Full force composition. Ends at 200 VP lead or cease-fire.</p>
+        <p>Balanced World War III scenario. Full force composition. Ends at 150 VP lead or cease-fire.</p>
       </div>
     </div>
     <div class="easy-start-wrap">
@@ -894,7 +894,7 @@ const ORBIT_LINES = [
 const UTYPES = {
   EWR:  {id:'EWR', name:'Early Warning Recon',    short:'EWR', atk:0,def:1,mov:1,
          cost:{orbit:2,deep:1.5,earth:1}, maxN:8,  vpKill:3, vpScore:3, special:'scores_enemy_cone'},
-  COM:  {id:'COM', name:'Communications Sat',      short:'COM', atk:0,def:1,mov:1,
+  COM:  {id:'COM', name:'Communications Sat',      short:'COM', atk:0,def:1,mov:2,
          cost:{orbit:2,deep:1.5,earth:1}, maxN:10, vpKill:0, vpScore:2, special:'scores_friendly'},
   CJS:  {id:'CJS', name:'Comm Jamming Sat',         short:'CJS', atk:0,def:1,mov:2,
          cost:{orbit:4,deep:2.5,earth:2}, maxN:2,  vpKill:0, vpScore:2, jamR:2, special:'jams'},
@@ -942,11 +942,11 @@ const PHASES = [
   {id:'OPT_B',      name:'Player B Move',     short:'Move B',   icon:'➡',  player:'b',
    desc:'Player B moves each satellite up to its MA in any direction. +1 free hex toward Earth (gravity assist). Units launched this turn cannot move. Click a unit to select it, then click a green destination hex.'},
   {id:'MINE_CBT',   name:'Mine Combat',       short:'Mines',    icon:'💥',  player:'both',
-   desc:'Resolves AUTOMATICALLY when you advance to this phase. Mines (ATK 6), missiles (ATK 5), and nukes (ATK 6, −10VP first strike) fire against all enemies in their hex. Mines cannot fire on the turn they were placed.'},
+   desc:'Resolves AUTOMATICALLY when you advance to this phase. Mines (ATK 6), missiles (ATK 5), and nukes (ATK 6, −5VP first strike) fire against all enemies in their hex. Mines cannot fire on the turn they were placed.'},
   {id:'COMBAT',     name:'Normal Combat',     short:'Combat',   icon:'⚔',  player:'both',
    desc:'Both players attack. Click any of your units with ATK > 0, then click ⚔ Attack and click the enemy in the same hex. Each unit attacks once only. CJS in range: +1 DEF friendly, −1 DEF enemy. Advance phase when done.'},
   {id:'SCORING',    name:'Scoring',           short:'Score',    icon:'★',  player:'both',
-   desc:'Award VPs: EWR in enemy spotting cone = 3VP. COM or CJS over friendly territory = 2VP each. EWR is jammed (0VP) if inside any CJS area of effect. Check win condition (200VP lead ends game).'}
+   desc:'Award VPs: EWR in enemy spotting cone = 3VP. COM or CJS over friendly territory = 2VP each. EWR is jammed (0VP) if inside any CJS area of effect. Check win condition (150VP lead ends game).'}
 ];
 
 // CRT: differential -> result
@@ -1025,7 +1025,7 @@ const TUT_STEPS = [
 // 0
 {title:'Welcome to Orbit War',
  meta:'Introduction',
- html:`<strong>Orbit War</strong> simulates satellite warfare between <span style="color:var(--usa)">USA</span> (red) and <span style="color:var(--apu)">APU</span> — Asian-Polish Union — (blue). Both sides deploy satellites, fire weapons, and score <strong>Victory Points (VP)</strong>. Lead by <strong>200 VP</strong> to win. This tutorial walks through two complete turns — just click <strong>Next →</strong> at each step.`,
+ html:`<strong>Orbit War</strong> simulates satellite warfare between <span style="color:var(--usa)">USA</span> (red) and <span style="color:var(--apu)">APU</span> — Asian-Polish Union — (blue). Both sides deploy satellites, fire weapons, and score <strong>Victory Points (VP)</strong>. Lead by <strong>150 VP</strong> to win. This tutorial walks through two complete turns — just click <strong>Next →</strong> at each step.`,
  hl:[]},
 
 // 1
@@ -1137,7 +1137,7 @@ const TUT_STEPS = [
  • <span style="color:var(--usa)">USA EWR</span> in APU's cone → <strong>+3 VP</strong><br>
  • <span style="color:var(--apu)">APU EWR "Scout"</span> in USA's cone → <strong>+3 VP</strong><br>
  • Kill of APU EWR earlier → <strong>+3 VP</strong> (already added)<br>
- Watch the score in the top bar. A <strong>200 VP lead</strong> triggers the win condition. Turn 1 complete — Turn 2 starting now.`,
+ Watch the score in the top bar. A <strong>150 VP lead</strong> triggers the win condition. Turn 1 complete — Turn 2 starting now.`,
  hl:['ewr','aEwrS'],
  exec(eng){
    eng.state.phase='SCORING'; eng.state.activePlayer=null;
@@ -1204,7 +1204,7 @@ const TUT_STEPS = [
 // 16
 {title:'Victory Points & Win Condition',
  meta:'Turn 2 · Scoring',
- html:`After scoring, check the VP delta in the top bar. Game ends when one side <strong>leads by 200 VP</strong> — passive scoring from EWRs and COMs (Communications Satellites) accumulates quickly, so early positioning matters as much as direct combat.<br><br>
+ html:`After scoring, check the VP delta in the top bar. Game ends when one side <strong>leads by 150 VP</strong> — passive scoring from EWRs and COMs (Communications Satellites) accumulates quickly, so early positioning matters as much as direct combat.<br><br>
  You now know the core loop. Hit <strong>Total War</strong> on the welcome screen for a full match, or <strong>⚡ Easy Start</strong> for an instant auto-setup.`,
  hl:['ewr','aEwrS'],
  exec(eng){ eng.state.phase='SCORING'; eng._score(); eng._checkWin(); }},
@@ -1832,9 +1832,9 @@ class Engine {
         !e.destroyed&&e.hex&&e.id!==nuke.id&&e.typeId!=='NUKE'&&
         blastHexes.some(h=>h.q===e.hex.q&&h.r===e.hex.r));
       const firstStrike=!this.state.firstNukeFired;
-      if(firstStrike) this.state.vp[nuke.side]=Math.max(0,this.state.vp[nuke.side]-10);
+      if(firstStrike) this.state.vp[nuke.side]=Math.max(0,this.state.vp[nuke.side]-5);
       this.state.firstNukeFired=true;
-      this._log(`${nuke.side.toUpperCase()} NUKE detonates at ring ${getRing(nuke.hex)}! Blast radius 1 — ${targets.length} unit(s) in range${firstStrike?' — first strike: −10VP to owner':''}`);
+      this._log(`${nuke.side.toUpperCase()} NUKE detonates at ring ${getRing(nuke.hex)}! Blast radius 1 — ${targets.length} unit(s) in range${firstStrike?' — first strike: −5VP to owner':''}`);
       if(!this.state.nukeEvents) this.state.nukeEvents=[];
       this.state.nukeEvents.push({hex:{...nuke.hex},blastHexes:blastHexes.map(h=>({...h}))});
       targets.forEach(t=>{
@@ -1968,7 +1968,7 @@ class Engine {
 
   _checkWin(){
     const{vp,scenario,turn}=this.state;
-    if(Math.abs(vp.usa-vp.apu)>=200){
+    if(Math.abs(vp.usa-vp.apu)>=150){
       this.state.gameOver=true;
       this.state.winner=vp.usa>vp.apu?'usa':'apu';
       this._log('GAME OVER: '+this.state.winner.toUpperCase()+' wins');
@@ -1984,9 +1984,9 @@ class Engine {
     const u=this._get(uid); if(!u||!u.suicide)return{ok:false};
     const opp=u.side==='usa'?'apu':'usa';
     const firstStrike=!this.state.firstNukeFired;
-    if(firstStrike) this.state.vp[u.side]=Math.max(0,this.state.vp[u.side]-10);
+    if(firstStrike) this.state.vp[u.side]=Math.max(0,this.state.vp[u.side]-5);
     this.state.firstNukeFired=true;
-    this._log(`${u.side.toUpperCase()} ${u.type.short} SUICIDE DETONATION at ring ${getRing(u.hex)}! ATK 6 blast radius 1 — friendly fire${firstStrike?' — first strike: −10VP to owner':''}`);
+    this._log(`${u.side.toUpperCase()} ${u.type.short} SUICIDE DETONATION at ring ${getRing(u.hex)}! ATK 6 blast radius 1 — friendly fire${firstStrike?' — first strike: −5VP to owner':''}`);
     const blastHexes=hexesInRange(u.hex,1).filter(h=>getRing(h)>=1&&getRing(h)<=10);
     if(!this.state.nukeEvents) this.state.nukeEvents=[];
     this.state.nukeEvents.push({hex:{...u.hex},blastHexes:blastHexes.map(h=>({...h}))});
@@ -4080,7 +4080,7 @@ class UI {
       </div>
       <div style="padding:10px 16px;background:rgba(200,168,0,.04);border-top:1px solid var(--border);font-size:10px;color:var(--dim)">
         ⚠ Missiles have no physical counters — they last one turn only and must be tracked here throughout the game.
-        Nukes must be launched via OLR and cost you 10 VP if detonated.
+        Nukes must be launched via OLR and cost you 5 VP if detonated first.
       </div>
       <div class="dlg-ft">
         <button class="btn-s" id="bk-clear">Clear All</button>
@@ -4529,7 +4529,7 @@ class UI {
     const payloads=[];
     if(w.mines>0)    payloads.push({type:'MINE',   label:`Mine`,    detail:`${w.mines} remaining`, cls:'btn-launch-olr-mine'});
     if(w.missiles>0) payloads.push({type:'MISSILE', label:`Missile`, detail:`${w.missiles} remaining`, cls:'btn-launch-olr-msl'});
-    if(w.nukes>0&&!launcher.nukeOLRFired) payloads.push({type:'NUKE', label:`Nuke`,    detail:`${w.nukes} remaining · −10VP`, cls:'btn-launch-olr-nuke'});
+    if(w.nukes>0&&!launcher.nukeOLRFired) payloads.push({type:'NUKE', label:`Nuke`,    detail:`${w.nukes} remaining · −5VP first strike`, cls:'btn-launch-olr-nuke'});
 
     const rows=payloads.map(p=>`
       <button class="${p.cls} btn-olr-pick" data-payload="${p.type}"
@@ -4814,7 +4814,7 @@ class UI {
       <div class="up-stats">ATK:${u.type.atk} DEF:${u.type.def}${defNote} MOV:${u.type.mov} Ring:${u.hex?getRing(u.hex):'?'}</div>
       ${w?`<div class="up-wep">Mines:${w.mines||0} Msls:${w.missiles||0} Nukes:${w.nukes||0}</div>`:''}
       ${sfLine}${movedNote}${moveHint}${attackedNote}${owpBlock}${resuppliedNote}${carryNote}
-      ${u.suicide?'<div style="color:var(--danger);font-family:var(--mono);font-size:10px">☢ SUICIDE NUKE — ATK 6 blast radius 1, costs 10VP + kills self</div>':''}
+      ${u.suicide?'<div style="color:var(--danger);font-family:var(--mono);font-size:10px">☢ SUICIDE NUKE — ATK 6 blast radius 1, costs 5VP first strike + kills self</div>':''}
       <div class="up-acts">
         ${canAttack?`<button class="btn-sm" id="btn-atk">⚔ Attack</button>`:''}
         ${u.suicide&&!u.attackedThisTurn?`<button class="btn-d" id="btn-det">☢ Detonate</button>`:''}
@@ -4830,7 +4830,7 @@ class UI {
       this._updateActionBar();
     });
     document.getElementById('btn-det')?.addEventListener('click',()=>{
-      if(confirm('Detonate suicide nuke? ATK 6 hits ALL units within 1 hex — including friendlies. Owner loses 10VP.')){
+      if(confirm('Detonate suicide nuke? ATK 6 hits ALL units within 1 hex — including friendlies. First strike costs 5VP.')){
         this.eng.detonateSuicide(u.id);
         this._hideUnitPanel(); this.sel=null; this.ren.setSelected(null);
       }
@@ -5128,7 +5128,7 @@ class UI {
       else{
         const leader=gap>0?'USA':'APU';
         const col=gap>0?'var(--usa)':'var(--apu)';
-        const pct=Math.min(100,Math.abs(gap)/2); // 200VP gap = 100%
+        const pct=Math.min(100,Math.abs(gap)*100/150); // 150VP gap = 100%
         gapEl.innerHTML=`<span style="color:${col}">${leader} +${Math.abs(gap)}</span> <span style="color:var(--dim);font-size:9px">(${pct.toFixed(0)}% to win)</span>`;
       }
     }
@@ -5745,7 +5745,7 @@ class UI {
       ]},
       {title:'Surveillance & Electronic Warfare',units:[
         {id:'EWR', name:'EWR', full:'Early Warning Recon',     stats:'0-1-1', note:'3VP/turn in enemy spotting cone.'},
-        {id:'COM', name:'COM', full:'Communications Satellite', stats:'0-1-1', note:'2VP/turn over friendly territory.'},
+        {id:'COM', name:'COM', full:'Communications Satellite', stats:'0-1-2', note:'2VP/turn over friendly territory.'},
         {id:'CJS', name:'CJS', full:'Comm Jamming Satellite',   stats:'0-1-2', note:'Jams missiles on 1-3. +1DEF to friendlies. 2VP/turn.'},
       ]},
       {title:'Launch & Transport',units:[
@@ -5757,7 +5757,7 @@ class UI {
       {title:'Weapons',units:[
         {id:'MINE',   name:'Mine', full:'Mine',           stats:'6-1-0', note:'Stationary. Auto-attacks all enemies in hex.'},
         {id:'MISSILE',name:'Msl',  full:'Missile',        stats:'5-0-2', note:'One turn only. Range 5. No counters — track on paper.'},
-        {id:'NUKE',   name:'Nuke', full:'Nuclear Warhead',stats:'5-−-−', note:'Via OLR only. Detonating costs you 10VP.'},
+        {id:'NUKE',   name:'Nuke', full:'Nuclear Warhead',stats:'6-−-−', note:'Via OLR only. First detonation costs −5VP.'},
         {id:'MIRV3',  name:'3MRV', full:'3-MIRV',         stats:'5×3',   note:'3 warheads. Counts as 1 in cargo (max 10).'},
         {id:'MIRV7',  name:'7MRV', full:'7-MIRV',         stats:'5×7',   note:'7 warheads. Counts as 1 in cargo (max 10).'},
       ]},
@@ -5787,7 +5787,7 @@ class UI {
       <div class="legend-section-title">Victory Points</div>
       <div class="legend-note">Per turn: EWR in enemy cone +3 · COM/CJS over friendly +2</div>
       <div class="legend-note">Kill VPs: SS=10 · EWR/Shuttle=3 · OWP/HK/SF=1 · COM/CJS=0</div>
-      <div class="legend-note">Nuke/Suicide detonation: −10VP to owner on first strike only. Win = 200VP lead (or turn limit).</div>
+      <div class="legend-note">Nuke/Suicide detonation: −5VP to owner on first strike only. Win = 150VP lead (or turn limit).</div>
     </div>`;
 
     container.innerHTML=html;
@@ -6075,7 +6075,7 @@ class SpotlightTutorial {
     return [
 
       T('ORBIT WAR',
-        `<b>Orbit War</b> is a two-player satellite warfare simulation. <b>USA</b> (red) vs <b>APU</b> — Asian-Polish Union — (blue). Deploy satellites, fire missiles, and score <b>Victory Points</b> — lead by <b>200 VP</b> to win.`
+        `<b>Orbit War</b> is a two-player satellite warfare simulation. <b>USA</b> (red) vs <b>APU</b> — Asian-Polish Union — (blue). Deploy satellites, fire missiles, and score <b>Victory Points</b> — lead by <b>150 VP</b> to win.`
         + HINT(`This is a VP race, not a war of annihilation. You can win without destroying a single enemy unit — by keeping your scoring satellites in enemy territory long enough. Combat is attrition, not the goal.`)
         + `<em>This tutorial plays two live turns. Everything is real engine behavior. Click Next &#8594; at each step.</em>`,
         'full'),
@@ -6142,9 +6142,9 @@ class SpotlightTutorial {
         }),
 
       T('NUKES — AREA BLAST, HIGH RISK',
-        `OWPs that carry <b>nukes</b> fire them via OLR (range 3, ATK 6). Unlike missiles, a nuke has a <b>blast radius of 1 hex</b> — it combats <em>every unit</em> (friend and foe) in the target hex and all 6 adjacent hexes. <b>Only the first nuke fired in the game costs −10 VP</b> (first-strike penalty). Once that threshold is crossed, further nukes carry no VP penalty for either side. OWPs marked ☢ can also <b>suicide-detonate</b> during Optional Movement: ATK 6 blast radius 1 kills everything nearby — including the OWP itself.`
+        `OWPs that carry <b>nukes</b> fire them via OLR (range 3, ATK 6). Unlike missiles, a nuke has a <b>blast radius of 1 hex</b> — it combats <em>every unit</em> (friend and foe) in the target hex and all 6 adjacent hexes. <b>Only the first nuke fired in the game costs −5 VP</b> (first-strike penalty). Once that threshold is crossed, further nukes carry no VP penalty for either side. OWPs marked ☢ can also <b>suicide-detonate</b> during Optional Movement: ATK 6 blast radius 1 kills everything nearby — including the OWP itself.`
         + `<em style="display:block;margin-top:6px;color:var(--accent)">☢ Watch the board — a live detonation is playing now.</em>`
-        + HINT(`The first-strike penalty makes the <em>decision to open nuclear warfare</em> costly — but once one side crosses that line, the gloves are off. If the enemy has already fired a nuke, your subsequent nukes are free. A ring-1 pile-up is an ideal target. Never fire when your own units are adjacent to the blast zone.`),
+        + HINT(`The first-strike penalty makes the <em>decision to open nuclear warfare</em> costly — but once one side crosses that line, the gloves are off. If the enemy has already fired a nuke, your subsequent nukes are free. A ring-1 pile-up is an ideal target. Never fire when your own units are adjacent to the blast zone. The penalty was reduced to −5VP to make nuclear play a live option mid-game.`),
         'board','right',['aOwp'],
         function(){
           const eng=this.eng; const s=eng.state;
@@ -6197,7 +6197,7 @@ class SpotlightTutorial {
 
       T('PHASE 8 — NORMAL COMBAT',
         `USA HK-2 (ATK 4) attacks APU Spy EWR (DEF 1). Diff +3 = <b>DE</b> (Defender Eliminated). USA earns <b>3 VP</b> for the kill. <b>Red hexes</b> on the board show where attacks are available. <b>Shortcut:</b> clicking a red hex when only one side has a ready attacker automatically opens the attack dialog — no need to select your unit first. Full CRT (Combat Results Table): −6 to −4=AE (Attacker Elim.), −3/−2=AR (Attacker Retreats), −1/0=EX (Exchange — both sides take one hit), +1/+2=DR (Defender Retreats), +3 to +6=DE (Defender Elim.).`
-        + HINT(`HK(4) vs HK(3) = DR every time — the defender retreats, nobody dies. Don't waste HKs fighting HKs. HK vs EWR = DE + 3 VP — <b>hunt EWRs</b>. Each EWR you kill stops 3 VP/turn and gives you 3 VP immediately: a 6 VP/turn swing. That's the fastest path to a 200 VP lead.`),
+        + HINT(`HK(4) vs HK(3) = DR every time — the defender retreats, nobody dies. Don't waste HKs fighting HKs. HK vs EWR = DE + 3 VP — <b>hunt EWRs</b>. Each EWR you kill stops 3 VP/turn and gives you 3 VP immediately: a 6 VP/turn swing. That's the fastest path to a 150 VP lead.`),
         'board','right',['hk2','aEwr'],
         function(){
           this.eng.state.units.forEach(u=>u.attackedThisTurn=false);
@@ -6376,7 +6376,7 @@ class AIPlayer {
     eng.getOLRLaunchers(side).forEach(launcher=>{
       let fired=0;
       // Nuke: only fire if VP can absorb penalty and expected gain is positive
-      if(fired<3&&launcher.weapons?.nukes>0&&myVP>=12){
+      if(fired<3&&launcher.weapons?.nukes>0&&myVP>=6){
         const nukeHex=this._bestNukeTarget(launcher.hex,side);
         if(nukeHex){
           const r=eng.fireOLR(launcher.id,'NUKE',nukeHex);
@@ -6412,7 +6412,7 @@ class AIPlayer {
     const eng=this.eng;
     const vpKill={EWR:3,SHUTTLE:3,OWP:5,HK:3,SF:2,SS:10,COM:1,CJS:1,SUPPLY:0,MINE:0};
     const blast=hexesInRange(tgt,1).filter(h=>getRing(h)>=1&&getRing(h)<=10);
-    let score=eng.state.firstNukeFired?0:-10; // first-strike penalty only once
+    let score=eng.state.firstNukeFired?0:-5; // first-strike penalty only once
     eng.state.units
       .filter(u=>!u.destroyed&&u.hex&&u.typeId!=='NUKE'&&
         blast.some(h=>h.q===u.hex.q&&h.r===u.hex.r))
@@ -6552,9 +6552,52 @@ class AIPlayer {
         if(dest)eng.moveUnit(u.id,dest);
       });
 
+    // ── Supply logistics ─────────────────────────────────────────
+    // 1. Shuttles at same hex as an uncarried friendly supply: pick it up
+    eng.state.units.filter(u=>u.side===side&&!u.destroyed&&u.hex&&
+      u.typeId==='SHUTTLE'&&!u.carriedSupplyId).forEach(shuttle=>{
+      const sup=eng.state.units.find(s=>s.side===side&&!s.destroyed&&s.hex&&
+        s.typeId==='SUPPLY'&&!s.carriedBy&&
+        s.hex.q===shuttle.hex.q&&s.hex.r===shuttle.hex.r);
+      if(sup) eng.carrySupply(shuttle.id,sup.id);
+    });
+    // 2. Shuttles carrying supply, co-located with a needy OWP/SS: drop + transfer
+    eng.state.units.filter(u=>u.side===side&&!u.destroyed&&u.hex&&
+      u.typeId==='SHUTTLE'&&u.carriedSupplyId).forEach(shuttle=>{
+      const sup=eng._get(shuttle.carriedSupplyId);
+      if(!sup||sup.destroyed)return;
+      const receiver=eng.state.units.find(r=>r.side===side&&!r.destroyed&&r.hex&&
+        ['OWP','SS'].includes(r.typeId)&&r.weapons&&
+        r.hex.q===shuttle.hex.q&&r.hex.r===shuttle.hex.r&&
+        ((r.weapons.missiles||0)+(r.weapons.mines||0)+(r.weapons.nukes||0))<(r.type.maxWep||10));
+      if(receiver){
+        eng.dropSupply(shuttle.id);
+        const need=(receiver.type.maxWep||10)-((receiver.weapons.missiles||0)+(receiver.weapons.mines||0)+(receiver.weapons.nukes||0));
+        const missiles=Math.min(need,sup.weapons?.missiles||0);
+        const nukes=Math.min(need-missiles,sup.weapons?.nukes||0);
+        if(missiles+nukes>0) eng.transferSupply(sup.id,receiver.id,{mines:0,missiles,nukes});
+      }
+    });
+    // 3. OWPs/SS directly adjacent to a supply counter (no shuttle needed): resupply
+    eng.state.units.filter(u=>u.side===side&&!u.destroyed&&u.hex&&
+      ['OWP','SS'].includes(u.typeId)&&u.weapons&&!u.resupplying&&
+      ((u.weapons.missiles||0)+(u.weapons.mines||0)+(u.weapons.nukes||0))<(u.type.maxWep||10)
+    ).forEach(receiver=>{
+      const sup=eng.state.units.find(s=>s.side===side&&!s.destroyed&&s.hex&&
+        s.typeId==='SUPPLY'&&s.hex.q===receiver.hex.q&&s.hex.r===receiver.hex.r&&
+        ((s.weapons?.missiles||0)+(s.weapons?.nukes||0))>0);
+      if(!sup)return;
+      const cap=(receiver.type.maxWep||10);
+      const load=(receiver.weapons.missiles||0)+(receiver.weapons.mines||0)+(receiver.weapons.nukes||0);
+      const need=cap-load;
+      const missiles=Math.min(need,sup.weapons?.missiles||0);
+      const nukes=Math.min(need-missiles,sup.weapons?.nukes||0);
+      if(missiles+nukes>0) eng.transferSupply(sup.id,receiver.id,{mines:0,missiles,nukes});
+    });
+
     // Suicide nuke: OWP detonates if blast net score justifies losing the OWP
     const myVP=eng.state.vp[side];
-    if(myVP>=12){
+    if(myVP>=7){
       eng.state.units
         .filter(u=>u.side===side&&!u.destroyed&&u.hex&&u.typeId==='OWP'&&
           u.weapons?.nukes>0&&!u.moved)
@@ -6768,7 +6811,7 @@ class Demo {
     if (s.gameOver || s.turn > 60) {
       const winner = s.winner || (s.vp.usa >= s.vp.apu ? 'usa' : 'apu');
       const w = winner === 'usa' ? '<span class="usa">USA WINS</span>' : '<span class="apu">APU WINS</span>';
-      const how = s.gameOver ? `200VP gap reached` : `turn limit — VP decision`;
+      const how = s.gameOver ? `150VP gap reached` : `turn limit — VP decision`;
       this._annotate(`${w} — <b>${s.vp.usa}VP</b> vs <b>${s.vp.apu}VP</b> (${how}). Restarting…`, 'GAME OVER');
       this._timer = setTimeout(()=>this._restart(), this._delay(5000));
       return;
@@ -6882,8 +6925,8 @@ class Demo {
       12:`<b>Turn 12 — USA holds on.</b> No kills. The scoring networks grind on, both sides racking up points. USA extends its lead slightly to 5. ${scoreStr}.`,
       13:`🎯 <b>Turn 13 — USA strikes an OWP.</b> A USA HK tracks down an APU Orbital Weapons Platform — diff +2, rolls <b>11</b> — <b>HIT</b>. APU loses a key launcher. USA pulls ahead to +15. ${scoreStr}.`,
       14:`☢ <b>Turn 14 — APU plays the nuclear card.</b> Two APU nukes arc outward via OLR, targeted at ring 2 — a gamble to deny USA the inner lanes. An APU HK kills a USA OWP. The nukes are in flight — they'll detonate next turn. USA leads. ${scoreStr}.`,
-      15:`💥 <b>Turn 15 — nukes detonate, no targets.</b> The ring-2 hexes are empty — both nukes blast nothing but vacuum. Meanwhile USA's HK executes a second OWP kill. USA crosses <b>200 VP</b> for the first time. ${scoreStr}.`,
-      16:`<b>Turn 16 — USA extends.</b> No kills. USA's EWR and COM network scores steadily. The 200 VP threshold has been breached — now it's about building a 200-point <em>gap</em>. ${scoreStr}.`,
+      15:`💥 <b>Turn 15 — nukes detonate, no targets.</b> The ring-2 hexes are empty — both nukes blast nothing but vacuum. Meanwhile USA's HK executes a second OWP kill. USA crosses <b>150 VP</b> for the first time. ${scoreStr}.`,
+      16:`<b>Turn 16 — USA extends.</b> No kills. USA's EWR and COM network scores steadily. The 150 VP threshold has been breached — now it's about building a 150-point <em>gap</em>. ${scoreStr}.`,
       17:`🎯 <b>Turn 17 — USA eliminates an APU HK.</b> The Hunter-Killer duel continues — USA lands a clean kill. USA leads by 18. ${scoreStr}.`,
       18:`<b>Turn 18 — the quiet expanse.</b> No kills. Satellites orbit in silence, scoring their turn. USA maintains a comfortable but not decisive advantage. ${scoreStr}.`,
       19:`<b>Turn 19 — APU strikes back.</b> An APU OWP finds a USA OWP in its sights and destroys it — diff 0, rolls <b>10</b> — exactly the threshold. APU claws back a few VP. ${scoreStr}.`,
@@ -6905,7 +6948,7 @@ class Demo {
       40:`<b>Turn 40 — the long tail.</b> USA has been ahead for 7 straight turns. The margin is growing as USA's positioning gradually outperforms APU's. ${scoreStr}.`,
       45:`<b>Turn 45 — USA pulls clear.</b> The lead has grown to double digits. APU is still fighting but the structural advantage has shifted to USA's scoring web. ${scoreStr}.`,
       50:`<b>Turn 50 — the endgame grind.</b> USA's lead is substantial now. Both fleets are shadows of their opening formations but USA's satellites have the better angles. ${scoreStr}.`,
-      55:`<b>Turn 55 — closing in.</b> USA is approaching the 200-VP gap. APU keeps scoring but cannot close the distance. ${scoreStr}.`,
+      55:`<b>Turn 55 — closing in.</b> USA is approaching the 150-VP gap. APU keeps scoring but cannot close the distance. ${scoreStr}.`,
       59:`<b>Turn 59 — one turn left.</b> USA needs to hold what it has. APU needs a miracle. ${scoreStr}.`,
       60:`🏆 <b>USA wins the 60-turn war — 511 to 483.</b> A margin of just 28 VP across 60 turns and six lead changes. The turning point: Turn 11, when a single HK rolled exactly <b>7</b> to take the lead by one point — and USA never truly let go. Final: <span class="usa">USA ${usa}VP</span> vs <span class="apu">APU ${apu}VP</span>.`,
     };
@@ -6985,7 +7028,7 @@ class Demo {
         if(queue.length) note+=`${queue.length} unit${queue.length>1?'s':''} queued for ELR insertion. `;
         if(deep.filter(u=>!u.launched).length) note+=`${deep.filter(u=>!u.launched).length} deep-space unit(s) inbound. `;
         if(missiles>0||nukes>0) note+=`${owps.length} OWP${owps.length>1?'s':''} \u2014 ${missiles} missile${missiles!==1?'s':''}${nukes>0?` + <b>${nukes} nuke${nukes>1?'s':''} \u2622</b>`:''}. `;
-        if(nukes>0) note+=`<em>Nuclear ordnance active \u2014 blast radius 1${this.eng.state?.firstNukeFired?'':`, \u221210VP first-strike penalty`}.</em>`;
+        if(nukes>0) note+=`<em>Nuclear ordnance active \u2014 blast radius 1${this.eng.state?.firstNukeFired?'':`, \u22125VP first-strike penalty`}.</em>`;
         return note;
       }
       case 'OPT_A': {
@@ -7028,7 +7071,7 @@ class Demo {
           let txt=`\u2622 <b>NUCLEAR DETONATION \u2014 ring ${ring}!</b> `;
           if(ffKills.length) txt+=`<b>${ffKills.length} ${nukerSide.toUpperCase()} unit${ffKills.length>1?'s':''} destroyed by FRIENDLY FIRE!</b> `;
           if(enemyKills.length) txt+=`${enemyKills.length} ${enemySide.toUpperCase()} unit${enemyKills.length>1?'s':''} eliminated. `;
-          txt+=`Owner pays <b>\u221210VP</b>.`;
+          txt+=`Owner pays <b>\u22125VP</b> (first strike).`;
           if(jammed.length) txt+=` CJS jammed ${jammed.length} other missile${jammed.length>1?'s':''}.`;
           return txt;
         }
@@ -7070,13 +7113,13 @@ class Demo {
         const usaGain=usaLines.reduce((n,l)=>{const m=l.match(/\+(\d+)VP/);return n+(m?+m[1]:0);},0);
         const apuGain=apuLines.reduce((n,l)=>{const m=l.match(/\+(\d+)VP/);return n+(m?+m[1]:0);},0);
         const jammedEWR=tl.filter(l=>/EWR jammed/.test(l));
-        const gap=200-Math.abs(delta);
+        const gap=150-Math.abs(delta);
         let note=`<b>Scoring:</b> `;
         if(usaGain>0) note+=`<span class="usa">USA +${usaGain}VP</span> `;
         if(apuGain>0) note+=`<span class="apu">APU +${apuGain}VP</span>. `;
         if(jammedEWR.length) note+=`${jammedEWR.length} EWR${jammedEWR.length>1?'s':''} jammed \u2014 silenced. `;
         note+=`<b>${scoreStr} \u2014 ${lead}.</b>`;
-        if(gap<50) note+=` \u26a0 Only <b>${gap}VP</b> from a game-ending gap!`;
+        if(gap<40) note+=` \u26a0 Only <b>${gap}VP</b> from a game-ending gap!`;
         return note;
       }
       default:
@@ -7144,8 +7187,8 @@ class Demo {
       }
       case 'SCORING': {
         // Show if someone is close to winning
-        const gap=200-Math.abs(s.vp.usa-s.vp.apu);
-        if(gap<50) return `⚠ <b>DANGER — only ${gap}VP from a game-ending 200VP gap!</b> ${lead}.`;
+        const gap=150-Math.abs(s.vp.usa-s.vp.apu);
+        if(gap<40) return `⚠ <b>DANGER — only ${gap}VP from a game-ending 150VP gap!</b> ${lead}.`;
         return '';
       }
       default: return '';
