@@ -154,13 +154,13 @@ Each turn runs through 9 phases in order. The web game enforces the sequence aut
 | Unit | ATK | DEF | MOV | Token | Kill VP | Key Rule |
 |------|:---:|:---:|:---:|:-----:|:-------:|----------|
 | **OWP** — Orbital Weapons Platform | 1 | 2 | 1 | Diamond | 1 | Fires OLRs (max 3/turn, max 1 nuke/turn). Cannot attack in Normal Combat on the same turn it fires OLRs (§17). May lay mines in its own hex without a rocket. |
-| **HK** — Hunter-Killer | 4 | 3 | 2 | Pentagon | 1 | Primary combat unit. High ATK, moderate DEF, good mobility. |
+| **HK** — Hunter-Killer | 4 | 2 | 2 | Pentagon | 1 | Primary combat unit. High ATK, mobile. Lower DEF makes HK duels more decisive. |
 | **SS** — Space Station *(Advanced)* | 4 | 4 | 1 | Wide rect | 10 | Costs 12 pts. Orbit only. Fires OLRs. Stores and transfers weapons. Can carry satellites as cargo. **Worth 10 VP if destroyed — a prime target.** |
 | **EWR** — Early Warning Recon | 0 | 1 | 1 | Tall rect | 3 | No attack. Scores **3 VP/turn** inside the enemy Spotting Cone. Jammed to 0 VP by any CJS within radius 2. |
 | **COM** — Communications Sat *(Advanced)* | 0 | 1 | 1 | Rounded sq | 0 | No attack. Scores **2 VP/turn** over friendly territory. |
 | **CJS** — Comm Jamming Satellite | 0 | 1 | 2 | Hexagon | 0 | Scores **2 VP/turn** over friendly territory. Radius-2 field: +1 DEF to friendly units, −1 DEF to enemies, 50% missile jam, jams EWRs. Gains +1 DEF from its own field (effective DEF 2). |
 | **SF** — Special Forces | 3 | 2 | 1 | Rounded sq | 1 | 12-turn orbital limit; removed at expiry (opponent scores VP). Cannot be a Deep Space reinforcement. May attack on the same turn they discharge from a rocket. |
-| **Shuttle** | 2 | 1 | 2 | Rounded sq | 3 | Fires OLRs. Carries up to 12 weapons plus one ELR or SF as cargo. Cannot attack on the turn it resupplies or is resupplied. |
+| **Shuttle** | 2 | 1 | 2 | Rounded sq | 3 | Fires OLRs. Carries up to 12 weapons plus one ELR or SF as cargo. Can pick up and tow a friendly Supply Counter (📦 Carry Supply button in move phase). Cannot attack on the turn it resupplies or is resupplied. |
 | **Supply Counter** | — | 1 | 0 | Octagon | — | Carries up to 10 weapons. OWP / Shuttle / SS in the same hex may draw from it during movement (blocks attack that turn). Removed when empty. |
 
 > **COM and SS** are Advanced Rules content in the original rulebook. They are included in the web game's base experience.
@@ -171,7 +171,7 @@ Each turn runs through 9 phases in order. The web game enforces the sequence aut
 |--------|:---:|-------|
 | **Mine** | 6 | Stationary. Auto-fires during Mine Combat every turn against all enemies in its hex. Cannot fire the turn it is placed (orange **NEW** badge). |
 | **Missile** | 5 | Launched via OLR. Auto-fires during Mine Combat phase on the following turn, then is removed. 50% chance of being jammed by a CJS in its path. |
-| **Nuke** | 5 | Launched via OLR. Detonates during Mine Combat phase. **Blast radius 1** — hits all units (friend and foe) within 1 hex. The first nuke fired costs **−10 VP** to the firing player. |
+| **Nuke** | 6 | Launched via OLR. Detonates during Mine Combat phase. **Blast radius 1** — hits all units (friend and foe) within 1 hex. The first nuke fired costs **−10 VP** to the firing player. |
 | **3-MIRV** | 5 | Board game: splits into 3 independent warheads. Web game: fires as a single nuke. |
 | **7-MIRV** | 5 | Board game: splits into 7 independent warheads. Web game: fires as a single nuke. |
 | **ELR** | — | Earth-Launched Rocket. Carries one satellite to rings 1–3. Max 3 per turn per side. Costs 0.5 pts each. |
@@ -314,6 +314,7 @@ VP are awarded at the end of every turn during the Scoring phase.
 | OWP, HK, or SF destroyed | +1 to destroyer |
 | First nuke detonated in the game | −10 to firing side |
 | Subsequent nukes detonated | 0 |
+| Unit forced to atmospheric decay (ring-1 retreat) | +kill VP to opponent |
 
 > **Rulebook note:** SF is listed at 2 VP in the unit cost table but 1 VP in the scoring section. The web game uses 1 VP, consistent with the scoring table.
 
@@ -370,8 +371,8 @@ Use this as a mid-game reminder. Click any rule for full context above.
 | First-strike penalty | Only the **first** nuke detonated in the game costs −10 VP to the firer. All subsequent nukes are free. |
 | Suicide nukes | Blast hits all units in radius — including your own. Position carefully. |
 | CJS jamming | Any CJS within radius 2 jams EWRs to 0 VP and jams missiles at 50% (whether friend or foe). |
-| Atmospheric decay | A unit forced to retreat from ring 1 is removed. No VP awarded to either side. |
-| HK vs HK combat | The attacker rolls 2d6 on the CRT (ATK 4 − DEF 3 = diff +1 → need 9+, 27.7% hit chance). The defender does not automatically shoot back; they must wait for their own attack turn. |
+| Atmospheric decay | A unit forced to retreat from ring 1 is removed. The **opponent scores kill VP** (same as a combat kill). |
+| HK vs HK combat | The attacker rolls 2d6 on the CRT (ATK 4 − DEF 2 = diff +2 → need 8+, 41.6% hit chance). The defender does not automatically shoot back; they must wait for their own attack turn. |
 
 ---
 
@@ -402,7 +403,7 @@ Either or both sides can be set to AI control using the **USA** / **APU** toggle
 | Pan | Click and drag |
 | Reset view | Double-click canvas, or ⌂ in the zoom widget |
 | Inspect hex | Hover — ring number and unit IDs appear in the status bar |
-| CJS radius | Hover over a CJS to highlight its radius-2 jamming field in green |
+| CJS radius | Hover over a CJS to highlight its radius-2 jamming field. Click **📡 CJS** in the toolbar to keep all fields visible permanently. |
 
 ### Sidebar Panels
 

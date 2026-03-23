@@ -606,6 +606,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--ui);font-size:13px
     <button class="ai-toggle usa" id="ai-usa-btn" title="Toggle USA AI player">👤 USA</button>
     <button class="ai-toggle apu" id="ai-apu-btn" title="Toggle APU AI player">👤 APU</button>
     <div class="tdiv"></div>
+    <button class="btn-sm" id="btn-cjs-overlay" title="Toggle permanent CJS jamming-field overlay">📡 CJS</button>
     <button class="btn-sm" id="btn-save-game">Save</button>
     <button class="btn-sm" id="btn-exit-game" style="color:var(--dim)">✕ Exit</button>
   </div>
@@ -899,7 +900,7 @@ const UTYPES = {
          cost:{orbit:4,deep:2.5,earth:2}, maxN:2,  vpKill:0, vpScore:2, jamR:2, special:'jams'},
   OWP:  {id:'OWP', name:'Orbital Weapons Platform',short:'OWP', atk:1,def:2,mov:1,
          cost:{orbit:3,deep:2,earth:1},   maxN:10, vpKill:1, maxWep:10, canWep:true, canOLR:true},
-  HK:   {id:'HK',  name:'Hunter-Killer',            short:'HK',  atk:4,def:3,mov:2,
+  HK:   {id:'HK',  name:'Hunter-Killer',            short:'HK',  atk:4,def:2,mov:2,
          cost:{orbit:3,deep:2,earth:1},   maxN:15, vpKill:1, canWep:true},
   SF:   {id:'SF',  name:'Special Forces',           short:'SF',  atk:3,def:2,mov:1,
          cost:{orbit:2,deep:null,earth:1},maxN:3,  vpKill:1, maxTurns:12},
@@ -913,7 +914,7 @@ const UTYPES = {
          cost:{orbit:.5,deep:.5,earth:.5}, isWep:true},
   MISSILE:{id:'MISSILE',name:'Missile',             short:'Msl', atk:5,def:0,mov:2,
          cost:{orbit:.5,deep:.5,earth:.5}, isWep:true, oneShot:true},
-  NUKE: {id:'NUKE',name:'Nuclear Warhead',          short:'Nuke',atk:5,def:0,mov:0,
+  NUKE: {id:'NUKE',name:'Nuclear Warhead',          short:'Nuke',atk:6,def:0,mov:0,
          cost:{orbit:1,deep:1,earth:1},   isWep:true, mustOLR:true, vpPenalty:10},
   MIRV3:{id:'MIRV3',name:'3-MIRV',                  short:'3MRV',atk:5,def:0,mov:0,
          cost:{orbit:4,deep:4,earth:4},   isWep:true, warheads:3},
@@ -941,7 +942,7 @@ const PHASES = [
   {id:'OPT_B',      name:'Player B Move',     short:'Move B',   icon:'➡',  player:'b',
    desc:'Player B moves each satellite up to its MA in any direction. +1 free hex toward Earth (gravity assist). Units launched this turn cannot move. Click a unit to select it, then click a green destination hex.'},
   {id:'MINE_CBT',   name:'Mine Combat',       short:'Mines',    icon:'💥',  player:'both',
-   desc:'Resolves AUTOMATICALLY when you advance to this phase. Mines (ATK 6), missiles (ATK 5), and nukes (ATK 5, −10VP) fire against all enemies in their hex. Mines cannot fire on the turn they were placed.'},
+   desc:'Resolves AUTOMATICALLY when you advance to this phase. Mines (ATK 6), missiles (ATK 5), and nukes (ATK 6, −10VP first strike) fire against all enemies in their hex. Mines cannot fire on the turn they were placed.'},
   {id:'COMBAT',     name:'Normal Combat',     short:'Combat',   icon:'⚔',  player:'both',
    desc:'Both players attack. Click any of your units with ATK > 0, then click ⚔ Attack and click the enemy in the same hex. Each unit attacks once only. CJS in range: +1 DEF friendly, −1 DEF enemy. Advance phase when done.'},
   {id:'SCORING',    name:'Scoring',           short:'Score',    icon:'★',  player:'both',
@@ -1114,7 +1115,7 @@ const TUT_STEPS = [
 // 9
 {title:'Phase 7 — Mine Combat',
  meta:'Turn 1 · Phase 7 of 9',
- html:`<strong>Mine Combat resolves automatically — before normal combat, every turn.</strong> The APU mine shares a hex with <strong>USA HK-1</strong>. Mine <strong>ATK 6</strong> vs HK <strong>DEF 3</strong> = differential +3 → <em>Defender Eliminated</em>. HK-1 is destroyed! The APU missile also auto-fires in its target hex. Mines can't fire on the turn they were placed.`,
+ html:`<strong>Mine Combat resolves automatically — before normal combat, every turn.</strong> The APU mine shares a hex with <strong>USA HK-1</strong>. Mine <strong>ATK 6</strong> vs HK <strong>DEF 2</strong> = differential +4 → <em>Defender Eliminated</em>. HK-1 is destroyed! The APU missile also auto-fires in its target hex. Mines can't fire on the turn they were placed.`,
  hl:['hk1','aMine'],
  exec(eng){ eng._cjsJamMissiles(); eng._mineCombat(); }},
 
@@ -1584,10 +1585,15 @@ class Engine {
     if(getRing(toHex)>10)return{ok:false,err:'Off board'};
     const fromHex={...u.hex};
     u.hex={...toHex}; u.moved=true;
+    // If this is a Shuttle carrying a Supply Counter, drag it along
+    if(u.typeId==='SHUTTLE'&&u.carriedSupplyId){
+      const sup=this._get(u.carriedSupplyId);
+      if(sup&&!sup.destroyed) sup.hex={...toHex};
+    }
     // Record optional-movement trail for renderer
     if(!this.state.optTrails) this.state.optTrails=[];
     this.state.optTrails.push({from:fromHex,to:{...toHex},side:u.side,typeId:u.typeId});
-    this._log(`${u.side.toUpperCase()} ${u.type.short} moved`);
+    this._log(`${u.side.toUpperCase()} ${u.type.short} moved${u.carriedSupplyId?' (carrying Supply Counter)':''}`);
     this._emit(); return{ok:true};
   }
 
@@ -1765,6 +1771,17 @@ class Engine {
     }
     u.carrying.forEach(pid=>{const p=this._get(pid);if(p){p.destroyed=true;p.onRocket=null}});
     u.carrying=[];
+    // Clean up shuttle↔supply carry links
+    if(u.typeId==='SUPPLY'&&u.carriedBy){
+      const carrier=this._get(u.carriedBy);
+      if(carrier){carrier.carriedSupplyId=null;}
+      u.carriedBy=null;
+    }
+    if(u.typeId==='SHUTTLE'&&u.carriedSupplyId){
+      const sup=this._get(u.carriedSupplyId);
+      if(sup){sup.carriedBy=null;}
+      u.carriedSupplyId=null;
+    }
   }
 
   _retreat(u){
@@ -1775,12 +1792,12 @@ class Engine {
       const inner=nb.find(n=>getRing(n)<r);
       if(inner){ u.hex=inner; return; }
     }
-    // At ring 1 with nowhere to retreat — unit is pulled into Earth's atmosphere and lost.
-    // No VP awarded (not a kill, just orbital decay).
-    this._log(`☄ ${u.side.toUpperCase()} ${u.type.short} forced into Earth’s atmosphere — orbital decay (no VP)`);
+    // At ring 1 with nowhere to retreat — unit is pulled into Earth’s atmosphere.
+    // Opponent scores kill VP (forcing a unit to ring-1 decay is a valid kill).
+    const opp=u.side===’usa’?’apu’:’usa’;
     if(!this.state.atmoEvents) this.state.atmoEvents=[];
     this.state.atmoEvents.push({side:u.side,typeShort:u.type.short});
-    u.destroyed=true; u.hex=null;
+    this._destroy(u,opp); // awards vpKill to opponent, marks destroyed
   }
 
   // ─────────────────────────────────────────────────────────
@@ -1806,7 +1823,7 @@ class Engine {
   }
 
   _mineCombat(){
-    // Nukes placed by OLR auto-detonate: ATK 5 blast radius 1 — hits ALL units (friend & foe)
+    // Nukes placed by OLR auto-detonate: ATK 6 blast radius 1 — hits ALL units (friend & foe)
     // within 1 hex of detonation point. Owner loses 10VP regardless.
     this.state.units.filter(u=>u.typeId==='NUKE'&&!u.destroyed&&u.hex).forEach(nuke=>{
       if(nuke.destroyed||!nuke.hex)return; // guard: may have been destroyed earlier this pass
@@ -1823,10 +1840,10 @@ class Engine {
       targets.forEach(t=>{
         if(t.destroyed)return; // guard: may have been destroyed earlier in this blast
         const def=this._effDef(t);
-        const diff=5-def;
+        const diff=6-def;
         const thr=crtThreshold(diff);
         const {d1,d2}=roll2d6(); const roll=d1+d2; const hit=roll>=thr;
-        this._log(`Nuke blast vs ${t.side.toUpperCase()} ${t.type.short}: ATK 5 − DEF ${def}=diff ${diff>0?'+':''}${diff}, need ${thr}+, rolled ${d1}+${d2}=${roll} → ${hit?'HIT':'MISS'}`);
+        this._log(`Nuke blast vs ${t.side.toUpperCase()} ${t.type.short}: ATK 6 − DEF ${def}=diff ${diff>0?'+':''}${diff}, need ${thr}+, rolled ${d1}+${d2}=${roll} → ${hit?'HIT':'MISS'}`);
         if(hit)this._destroy(t,nuke.side);
       });
       nuke.destroyed=true; nuke.hex=null;
@@ -1969,7 +1986,7 @@ class Engine {
     const firstStrike=!this.state.firstNukeFired;
     if(firstStrike) this.state.vp[u.side]=Math.max(0,this.state.vp[u.side]-10);
     this.state.firstNukeFired=true;
-    this._log(`${u.side.toUpperCase()} ${u.type.short} SUICIDE DETONATION at ring ${getRing(u.hex)}! ATK 5 blast radius 1 — friendly fire${firstStrike?' — first strike: −10VP to owner':''}`);
+    this._log(`${u.side.toUpperCase()} ${u.type.short} SUICIDE DETONATION at ring ${getRing(u.hex)}! ATK 6 blast radius 1 — friendly fire${firstStrike?' — first strike: −10VP to owner':''}`);
     const blastHexes=hexesInRange(u.hex,1).filter(h=>getRing(h)>=1&&getRing(h)<=10);
     if(!this.state.nukeEvents) this.state.nukeEvents=[];
     this.state.nukeEvents.push({hex:{...u.hex},blastHexes:blastHexes.map(h=>({...h}))});
@@ -1977,10 +1994,10 @@ class Engine {
       blastHexes.some(h=>h.q===x.hex.q&&h.r===x.hex.r))
       .forEach(t=>{
         const def=this._effDef(t);
-        const diff=5-def;
+        const diff=6-def;
         const thr=crtThreshold(diff);
         const {d1,d2}=roll2d6(); const roll=d1+d2; const hit=roll>=thr;
-        this._log(`Suicide blast vs ${t.side.toUpperCase()} ${t.type.short}: ATK 5 − DEF ${def}=diff ${diff>0?'+':''}${diff}, need ${thr}+, rolled ${d1}+${d2}=${roll} → ${hit?'HIT':'MISS'}`);
+        this._log(`Suicide blast vs ${t.side.toUpperCase()} ${t.type.short}: ATK 6 − DEF ${def}=diff ${diff>0?'+':''}${diff}, need ${thr}+, rolled ${d1}+${d2}=${roll} → ${hit?'HIT':'MISS'}`);
         if(hit)this._destroy(t,u.side);
       });
     // Attacker is always destroyed — opponent scores VP for the kill
@@ -2046,6 +2063,12 @@ class Engine {
     // Remove supply counter if fully emptied
     const remaining = (supply.weapons.mines||0)+(supply.weapons.missiles||0)+(supply.weapons.nukes||0);
     if(remaining===0){
+      // Clear carry link before destroying
+      if(supply.carriedBy){
+        const carrier=this._get(supply.carriedBy);
+        if(carrier) carrier.carriedSupplyId=null;
+        supply.carriedBy=null;
+      }
       supply.destroyed=true; supply.hex=null;
       this._log(`Supply counter expended and removed`);
     }
@@ -2062,6 +2085,34 @@ class Engine {
       s.hex.q===u.hex.q&&s.hex.r===u.hex.r&&
       (s.side===u.side||(s.capturedFrom&&s.capturedFrom!==u.side))
     );
+  }
+
+  // Attach a Supply Counter to a Shuttle as cargo — supply moves with shuttle
+  carrySupply(shuttleId,supplyId){
+    const shuttle=this._get(shuttleId), sup=this._get(supplyId);
+    if(!shuttle||!sup) return{ok:false,err:'Unit not found'};
+    if(shuttle.typeId!=='SHUTTLE') return{ok:false,err:'Only Shuttles can carry Supply Counters'};
+    if(sup.typeId!=='SUPPLY') return{ok:false,err:'Not a Supply Counter'};
+    if(sup.side!==shuttle.side&&!sup.capturedFrom) return{ok:false,err:'Cannot carry enemy supply'};
+    if(!shuttle.hex||!sup.hex||shuttle.hex.q!==sup.hex.q||shuttle.hex.r!==sup.hex.r)
+      return{ok:false,err:'Shuttle and Supply Counter must be in the same hex'};
+    if(shuttle.carriedSupplyId) return{ok:false,err:'Shuttle is already carrying a Supply Counter'};
+    if(sup.carriedBy) return{ok:false,err:'Supply Counter is already being carried'};
+    shuttle.carriedSupplyId=supplyId;
+    sup.carriedBy=shuttleId;
+    this._log(`${shuttle.side.toUpperCase()} SHUTTLE picks up Supply Counter`);
+    this._emit(); return{ok:true};
+  }
+
+  // Detach the Supply Counter from a Shuttle — supply stays at the shuttle's current hex
+  dropSupply(shuttleId){
+    const shuttle=this._get(shuttleId);
+    if(!shuttle||!shuttle.carriedSupplyId) return{ok:false,err:'Shuttle is not carrying a Supply Counter'};
+    const sup=this._get(shuttle.carriedSupplyId);
+    if(sup){sup.carriedBy=null;}
+    shuttle.carriedSupplyId=null;
+    this._log(`${shuttle.side.toUpperCase()} SHUTTLE drops Supply Counter`);
+    this._emit(); return{ok:true};
   }
 
   // ─────────────────────────────────────────────────────────
@@ -2199,6 +2250,8 @@ class Renderer {
     if(this.eng.state)this._drawSelectedEWRCone();
     // Setup ring guide during placement
     if(typeof ui!=='undefined'&&ui.mode==='place')this._drawSetupRingGuide();
+    // CJS overlay (permanent, toggled by toolbar button) — drawn before hover so hover is always on top
+    if(this.showCJSOverlay&&this.eng.state)this._drawAllCJSRadius();
     // CJS radius on hover
     if(this.hovered&&this.eng.state)this._drawCJSRadius(this.hovered);
     if(this.eng.state)this._drawOrbTrails();
@@ -2237,6 +2290,19 @@ class Renderer {
       });
       // Highlight the CJS itself with a stronger ring
       this._hlHex(cjs.hex,'rgba(0,255,170,.12)','rgba(0,255,170,.7)',2);
+    });
+  }
+
+  // Permanent overlay: show all CJS fields at once (toggled by toolbar button)
+  _drawAllCJSRadius(){
+    const s=this.eng.state; if(!s) return;
+    s.units.filter(u=>u.typeId==='CJS'&&!u.destroyed&&u.hex).forEach(cjs=>{
+      hexesInRange(cjs.hex,cjs.type.jamR||2).forEach(h=>{
+        if(h.q===cjs.hex.q&&h.r===cjs.hex.r)return;
+        if(getRing(h)<1||getRing(h)>10)return;
+        this._hlHex(h,'rgba(0,255,170,.04)','rgba(0,255,170,.22)',1);
+      });
+      this._hlHex(cjs.hex,'rgba(0,255,170,.08)','rgba(0,255,170,.5)',1.5);
     });
   }
 
@@ -3665,6 +3731,11 @@ class UI {
       const demo=new Demo(this); demo.start();
     });
     document.getElementById('btn-load-game').addEventListener('click',()=>this._loadGame().catch(e=>this._toast('Load error: '+e.message)));
+    document.getElementById('btn-cjs-overlay').addEventListener('click',()=>{
+      this.ren.showCJSOverlay=!this.ren.showCJSOverlay;
+      document.getElementById('btn-cjs-overlay').style.color=this.ren.showCJSOverlay?'var(--accent)':'';
+      this.ren.render();
+    });
     document.getElementById('btn-save-game').addEventListener('click',()=>this._saveGame().catch(e=>this._toast('Save error: '+e.message)));
     document.getElementById('zoom-in')?.addEventListener('click',()=>this.ren._zoomAt(1.25,this.ren.cv.width/2,this.ren.cv.height/2));
     document.getElementById('zoom-out')?.addEventListener('click',()=>this.ren._zoomAt(0.80,this.ren.cv.width/2,this.ren.cv.height/2));
@@ -4719,16 +4790,24 @@ class UI {
     const canResupply=isMove&&['OWP','SHUTTLE','SS'].includes(u.typeId)&&!u.resupplying&&
       (this.eng.getSupplyFor(u.id)||[]).length>0;
     const resuppliedNote=isMove&&u.resupplying?`<div style="font-family:var(--mono);font-size:10px;color:var(--orbit)">⛽ resupplied this turn — cannot attack</div>`:'';
+    // Shuttle carry/drop Supply Counter
+    const canCarrySupply=isMove&&u.typeId==='SHUTTLE'&&!u.carriedSupplyId&&
+      this.eng.state.units.some(s=>s.typeId==='SUPPLY'&&!s.destroyed&&s.hex&&
+        s.hex.q===u.hex.q&&s.hex.r===u.hex.r&&s.side===u.side&&!s.carriedBy);
+    const isCarrying=u.typeId==='SHUTTLE'&&!!u.carriedSupplyId;
+    const carryNote=isCarrying?`<div style="font-family:var(--mono);font-size:10px;color:var(--accent)">📦 Carrying Supply Counter</div>`:'';
     p.innerHTML=`
       <div class="up-head ${u.side}">${u.type.name} <span style="opacity:.5;font-size:9px">${u.id}</span></div>
       <div class="up-stats">ATK:${u.type.atk} DEF:${u.type.def}${defNote} MOV:${u.type.mov} Ring:${u.hex?getRing(u.hex):'?'}</div>
       ${w?`<div class="up-wep">Mines:${w.mines||0} Msls:${w.missiles||0} Nukes:${w.nukes||0}</div>`:''}
-      ${sfLine}${movedNote}${moveHint}${attackedNote}${owpBlock}${resuppliedNote}
-      ${u.suicide?'<div style="color:var(--danger);font-family:var(--mono);font-size:10px">☢ SUICIDE NUKE — ATK 5 blast radius 1, costs 10VP + kills self</div>':''}
+      ${sfLine}${movedNote}${moveHint}${attackedNote}${owpBlock}${resuppliedNote}${carryNote}
+      ${u.suicide?'<div style="color:var(--danger);font-family:var(--mono);font-size:10px">☢ SUICIDE NUKE — ATK 6 blast radius 1, costs 10VP + kills self</div>':''}
       <div class="up-acts">
         ${canAttack?`<button class="btn-sm" id="btn-atk">⚔ Attack</button>`:''}
         ${u.suicide&&!u.attackedThisTurn?`<button class="btn-d" id="btn-det">☢ Detonate</button>`:''}
         ${canResupply?`<button class="btn-sm" id="btn-resupply" style="color:var(--orbit);border-color:var(--orbit)">⛽ Resupply</button>`:''}
+        ${canCarrySupply?`<button class="btn-sm" id="btn-carry-sup" style="color:var(--accent);border-color:var(--accent)">📦 Carry Supply</button>`:''}
+        ${isMove&&isCarrying?`<button class="btn-sm" id="btn-drop-sup">📦 Drop Supply</button>`:''}
       </div>
     `;
     p.style.display='block';
@@ -4738,13 +4817,26 @@ class UI {
       this._updateActionBar();
     });
     document.getElementById('btn-det')?.addEventListener('click',()=>{
-      if(confirm('Detonate suicide nuke? ATK 5 hits ALL units within 1 hex — including friendlies. Owner loses 10VP.')){
+      if(confirm('Detonate suicide nuke? ATK 6 hits ALL units within 1 hex — including friendlies. Owner loses 10VP.')){
         this.eng.detonateSuicide(u.id);
         this._hideUnitPanel(); this.sel=null; this.ren.setSelected(null);
       }
     });
     document.getElementById('btn-resupply')?.addEventListener('click',()=>{
       this._showResupplyDialog(u);
+    });
+    document.getElementById('btn-carry-sup')?.addEventListener('click',()=>{
+      const sup=this.eng.state.units.find(s=>s.typeId==='SUPPLY'&&!s.destroyed&&s.hex&&
+        s.hex.q===u.hex.q&&s.hex.r===u.hex.r&&s.side===u.side&&!s.carriedBy);
+      if(!sup){this._toast('No Supply Counter to pick up here');return;}
+      const r=this.eng.carrySupply(u.id,sup.id);
+      if(!r.ok){this._toast(r.err);return;}
+      this._showUnitPanel(u); this.ren.render();
+    });
+    document.getElementById('btn-drop-sup')?.addEventListener('click',()=>{
+      const r=this.eng.dropSupply(u.id);
+      if(!r.ok){this._toast(r.err);return;}
+      this._showUnitPanel(u); this.ren.render();
     });
   }
 
@@ -6037,7 +6129,7 @@ class SpotlightTutorial {
         }),
 
       T('NUKES — AREA BLAST, HIGH RISK',
-        `OWPs that carry <b>nukes</b> fire them via OLR (range 3, ATK 5). Unlike missiles, a nuke has a <b>blast radius of 1 hex</b> — it combats <em>every unit</em> (friend and foe) in the target hex and all 6 adjacent hexes. <b>Only the first nuke fired in the game costs −10 VP</b> (first-strike penalty). Once that threshold is crossed, further nukes carry no VP penalty for either side. OWPs marked ☢ can also <b>suicide-detonate</b> during Optional Movement: ATK 5 blast radius 1 kills everything nearby — including the OWP itself.`
+        `OWPs that carry <b>nukes</b> fire them via OLR (range 3, ATK 6). Unlike missiles, a nuke has a <b>blast radius of 1 hex</b> — it combats <em>every unit</em> (friend and foe) in the target hex and all 6 adjacent hexes. <b>Only the first nuke fired in the game costs −10 VP</b> (first-strike penalty). Once that threshold is crossed, further nukes carry no VP penalty for either side. OWPs marked ☢ can also <b>suicide-detonate</b> during Optional Movement: ATK 6 blast radius 1 kills everything nearby — including the OWP itself.`
         + `<em style="display:block;margin-top:6px;color:var(--accent)">☢ Watch the board — a live detonation is playing now.</em>`
         + HINT(`The first-strike penalty makes the <em>decision to open nuclear warfare</em> costly — but once one side crosses that line, the gloves are off. If the enemy has already fired a nuke, your subsequent nukes are free. A ring-1 pile-up is an ideal target. Never fire when your own units are adjacent to the blast zone.`),
         'board','right',['aOwp'],
