@@ -1278,6 +1278,11 @@ class Engine {
     const s=this.state;
     switch(s.phase){
       case'TURN_TRACK':
+        // Swap Player A / Player B each turn for balanced go-first order (§2.2)
+        if(s.turn>1){
+          const tmp=s.playerA; s.playerA=s.playerB; s.playerB=tmp;
+          this._log(`Turn ${s.turn}: ${s.playerA.toUpperCase()} goes first (A/B swapped)`);
+        }
         // Snapshot VP at turn start for momentum display
         s.vpLastTurn={usa:s.vp.usa,apu:s.vp.apu};
         // Expire missiles and OLR counters from previous turn (§8/§11)
@@ -5082,15 +5087,19 @@ class UI {
           if(this._aiSides.apu) ai._aiCombat('apu');
           break;
       }
-    } finally {
+    } catch(e){ console.warn('AI execution error:',e); }
+    // Force a render so launch/move trails are painted before phase advances and clears them.
+    // _aiExecuting stays true during the delay window to block re-entrant _checkAIPhase.
+    this.ren.render();
+    setTimeout(()=>{
       this._aiExecuting=false;
-    }
-    this._cancelMode();
-    this._hideLaunchPanel();
-    this._moveHistory=[];
-    this._launchHistory=[];
-    this.eng.advancePhase();
-    this._maybeAutoAdvance();
+      this._cancelMode();
+      this._hideLaunchPanel();
+      this._moveHistory=[];
+      this._launchHistory=[];
+      this.eng.advancePhase();
+      this._maybeAutoAdvance();
+    }, 800);
   }
 
   _cancelMode(){
