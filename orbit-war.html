@@ -740,7 +740,7 @@ function mulberry32(seed){
     return((t^t>>>14)>>>0)/4294967296;
   };
 }
-const DEMO_SEED=6024; // Tournament winner (50-game sim, 2d6 mechanics): 7 lead changes, tied turn 6, USA comeback
+const DEMO_SEED=6018; // Best of 50-game sim (seeds 6001–6050): 6 lead changes, knife-edge T11 lead (+1VP!), USA comeback wins 511–483
 
 // ─── Precomputed math constants ──────────────────────────────
 Math.SQRT3   = Math.sqrt(3);
@@ -4600,14 +4600,23 @@ class UI {
         :`✗ MISS — ${sum} < ${thr>12?'—':thr} — Attack fails`;
       document.getElementById('sc-roll').style.display='none';
       document.getElementById('sc-apply').style.display='';
-      // Freeze checkboxes
+      // Freeze checkboxes and lock in the roll — Cancel is hidden so the
+      // player cannot dismiss and re-open the dialog to fish for a better result.
       document.querySelectorAll('.cbt-chk-a,.cbt-chk-d').forEach(c=>{c.disabled=true;});
+      document.getElementById('sc-cancel').style.display='none';
     });
 
     document.getElementById('sc-apply').addEventListener('click',()=>{
       if(!pendingRoll)return;
       const r=eng.stackedCombat(pendingRoll.atkIds,pendingRoll.defIds,{d1:pendingRoll.d1,d2:pendingRoll.d2});
-      if(!r.ok){this._toast(r.err);this._closeDlg();return;}
+      if(!r.ok){
+        // Keep the dialog open so the player can see what went wrong.
+        // Show error in the result area so it's visible without a toast race.
+        const errEl=document.getElementById('sc-res');
+        if(errEl){errEl.style.display='block';errEl.className='cbt-res';errEl.textContent=`⚠ ${r.err}`;}
+        this._toast(r.err);
+        return;
+      }
       this._closeDlg();
       this._toast(pendingRoll.hit
         ?`HIT! Rolled ${pendingRoll.d1}+${pendingRoll.d2}=${pendingRoll.d1+pendingRoll.d2} — defender eliminated`
@@ -6359,7 +6368,7 @@ class Demo {
   // ── Entry point ─────────────────────────────────────────────
   start(){
     this._active = true;
-    // Seed Math.random so the demo game is always the same (tournament seed 3006)
+    // Seed Math.random so the demo game is always the same (seed 6018 — best of 50-game sim)
     this._origRandom = Math.random;
     Math.random = mulberry32(DEMO_SEED);
     this._setupBoard();
@@ -6596,35 +6605,48 @@ class Demo {
     };
     const t=s.turn;
 
-    // \u2500\u2500 Seed-3006 per-turn dramatic narrative \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+    // ── Seed-6018 per-turn narrative — verified against engine event log ─────────
     const SCRIPT={
-      1:`\ud83d\udef0 <b>Deployment complete \u2014 war begins.</b> Both fleets are in orbit, Earth reserves on standby. An APU mine drifts immediately into the USA formation \u2014 the supply depot takes the first hit before both sides have even fully deployed. <em>No retreating now.</em>`,
-      2:`<b>Turn 2 \u2014 the shooting war opens.</b> USA missiles tear open an APU OWP; APU responds in kind. Both sides lose a weapons platform in the same exchange. A Hunter-Killer burns up on re-entry. The score stays close \u2014 but attrition has begun.`,
-      3:`\u2622 <b>Turn 3 \u2014 the decision that shapes the entire war.</b> APU has a nuclear warhead loaded and the USA Space Station sits exposed at ring 4, worth 10VP. APU fires. <em>Watch what happens next.</em>`,
-      4:`\ud83d\udd04 <b>LEAD CHANGE \u2014 USA surges back.</b> The nuke backfired catastrophically \u2014 APU lost five of its own units in the blast. USA capitalizes: four EWRs flood the APU cone simultaneously. ${scoreStr}. One point separates the fleets.`,
-      5:`\ud83d\udd04 <b>LEAD CHANGE \u2014 APU inches ahead.</b> APU's OWPs are still firing. Three more HKs burn up in the inner rings \u2014 the orbital highway to Earth is littered with wreckage. APU claws back to a 3-point lead.`,
-      6:`\ud83c\udf0d <b>EARTH ROTATES \u2014 LEAD CHANGE!</b> The scoring cones sweep 60\u00b0 and suddenly four USA EWRs are inside the APU spotting zone simultaneously. USA's best turn yet: +20VP in a single phase. ${scoreStr}.`,
-      7:`\ud83d\udd04 <b>LEAD CHANGE \u2014 APU responds.</b> APU's last active HK tracks a USA communications satellite and destroys it. The score inverts for the fifth time. ${scoreStr}.`,
-      8:`<b>Turn 8 \u2014 a brief ceasefire of attrition.</b> No kills. Both fleets are battered but still scoring. The outer rings are dense with EWRs and COMs circling for position. APU's lead is thin \u2014 5 points.`,
-      9:`\ud83c\udf0d <b>Earth rotates.</b> APU's cone sweeps deeper into USA territory. APU scores 18VP this turn to USA's 7. The gap is opening. ${scoreStr}.`,
-      10:`<b>Turn 10 \u2014 the VP machinery grinds.</b> No combat. Both fleets score heavily from the outer rings. APU +20, USA +18. The orbital empire is built satellite by satellite.`,
-      11:`<b>The gap widens.</b> Four APU COMs and EWRs score simultaneously. USA can't match the coverage. ${scoreStr} \u2014 the lead is stretching.`,
-      12:`\ud83d\udca3 <b>Turn 12 \u2014 the mine massacre.</b> Five USA Hunter-Killers orbit into APU mine fields in a single pass. Five simultaneous Defender Eliminated results. USA's entire attack force is obliterated in one turn.`,
-      13:`\ud83c\udfaf <b>The hunt begins.</b> Earth rotates. APU's surviving HK locks onto a USA EWR \u2014 the first of four consecutive kills that will dismantle USA's scoring apparatus one satellite at a time.`,
-      14:`\ud83c\udfaf <b>The hunt continues.</b> A second USA EWR eliminated. USA's scoring web is unravelling with no HKs left to protect it. ${scoreStr}.`,
-      15:`\ud83c\udfaf <b>Three for three.</b> APU's lone HK strikes again. A third consecutive EWR kill. USA scoring collapses to near-zero. APU crosses 200VP for the first time.`,
-      16:`\ud83c\udfaf <b>Four consecutive EWR kills.</b> USA's last scoring satellite eliminated. The VP race is over \u2014 it's now just a question of margin. ${scoreStr}.`,
-      17:`\ud83d\udce1 <b>USA goes dark.</b> Zero scoring units remain in the cones. APU accumulates unopposed. USA's 172VP sit frozen as APU's counter climbs.`,
-      18:`<b>The last USA signal fades.</b> A final COM satellite decays into the atmosphere \u2014 one last 2-VP pulse, then silence. USA frozen at 172.`,
-      19:`<b>Silence from the USA sector.</b> APU's EWRs, COMs, and CJS satellites orbit in formation, racking up points uncontested. ${scoreStr}.`,
-      20:`<b>APU's orbital empire runs like clockwork.</b> CJS jams phantom missiles. EWRs score. COMs transmit. USA watches from the ground. ${scoreStr}.`,
-      21:`\ud83c\udf0d <b>Final earth rotation.</b> APU cones sweep the last corner of USA territory. ${scoreStr} \u2014 the 200-point gap is within reach.`,
-      22:`<b>The end is near.</b> APU scores 22VP: four EWRs, one CJS, four COMs all in scoring position simultaneously. ${scoreStr}.`,
-      23:`<b>Unstoppable.</b> APU's orbital formation is perfect \u2014 EWRs in the cone, COMs over territory, CJS jamming interference. ${scoreStr}.`,
-      24:`<b>Dominant orbit.</b> ${scoreStr}. The 200-point gap will breach within 2 turns.`,
-      25:`\ud83c\udf0d <b>Earth's final rotation.</b> APU loses a touch of cone coverage but still scores heavily. ${scoreStr} \u2014 approaching the 200-point margin.`,
-      26:`<b>One turn away.</b> APU CJS jams one stray missile. EWRs and COMs push the gap to 192. The finish line is visible.`,
-      27:`\ud83c\udfc6 <b>APU wins \u2014 200VP supremacy achieved.</b> The war's defining moment was Turn 3: a nuke that cost APU five of its own units \u2014 but killed the USA Space Station and broke the strategic balance for good. APU wins ${apu}\u2013${usa}.`,
+      1:`🛸 <b>Deployment complete — war begins.</b> Both fleets orbit in formation, Earth reserves on standby. An APU mine drifts straight into the USA supply depot — the warehouse explodes before the first human order is given. The mine misses the Space Station but the damage is done. USA clings to an early 2-VP lead.`,
+      2:`🔄 <b>LEAD CHANGE — APU surges.</b> The same APU mine completes its orbit and this time strikes true: the USA Space Station erupts for <b>+10 VP</b>. APU missiles rake the formation — two USA Hunter-Killers and an EWR are gone. In one devastating turn APU rockets from −2 to <b>+16</b>. ${scoreStr}.`,
+      3:`<b>Turn 3 — USA rebuilds under fire.</b> Three fresh EWRs lift off from Earth and race for the APU spotting cone. Combat exchanges end in misses on both sides — neither fleet can land a clean hit. APU holds its lead but the EWR pipeline is filling. ${scoreStr}.`,
+      4:`🌍 <b>Earth rotates — cones sweep 60°.</b> The scoring geometry shifts and USA's incoming EWRs slide into prime position. No kills this turn, but the VP machinery is already rewiring itself. APU leads, but the gap is closing. ${scoreStr}.`,
+      5:`🔄 <b>LEAD CHANGE — USA answers.</b> The rotated cone drops four USA EWRs into scoring range simultaneously. USA rakes in <b>+17 VP</b> this turn to APU's +5. The lead flips: <b>USA ahead by 6</b>. ${scoreStr}.`,
+      6:`<b>Turn 6 — dogfight in the mid-rings.</b> APU OWPs fire at USA Hunter-Killers and miss. USA fires back — another miss. Both fleets score from their satellite networks. USA keeps a narrow lead. ${scoreStr}.`,
+      7:`<b>Turn 7 — APU reinforces.</b> APU lifts COMs into orbit to build a scoring web. Combat volleys land nothing but craters in empty space. USA leads by 5. ${scoreStr}.`,
+      8:`🔄 <b>LEAD CHANGE — APU grinds ahead.</b> No kills — just cold, mechanical VP accumulation. APU's maturing COM and EWR network outscores USA +19 to +11 this turn. The lead inverts for the third time. APU leads by just <b>3 points</b>. ${scoreStr}.`,
+      9:`<b>Turn 9 — the tightest race in orbit.</b> Both sides score nearly identically. APU leads by 2. Both fleets launch and miss in combat. Every satellite counts. ${scoreStr}.`,
+      10:`<b>Turn 10 — dead even.</b> APU leads by 3. No kills, no decisive moves. The orbital empires are fully built — it's a pure scoring grind now, VP by VP. ${scoreStr}.`,
+      11:`🔄 <b>LEAD CHANGE — one single VP.</b> USA's Hunter-Killer closes on an APU COM — diff +3, rolls <b>7</b>, exactly the threshold needed — <b>HIT</b>. USA seizes the lead by <em>one point</em>, 144–143. The most knife-edge moment of the war. ${scoreStr}.`,
+      12:`<b>Turn 12 — USA holds on.</b> No kills. The scoring networks grind on, both sides racking up points. USA extends its lead slightly to 5. ${scoreStr}.`,
+      13:`🎯 <b>Turn 13 — USA strikes an OWP.</b> A USA HK tracks down an APU Orbital Weapons Platform — diff +2, rolls <b>11</b> — <b>HIT</b>. APU loses a key launcher. USA pulls ahead to +15. ${scoreStr}.`,
+      14:`☢ <b>Turn 14 — APU plays the nuclear card.</b> Two APU nukes arc outward via OLR, targeted at ring 2 — a gamble to deny USA the inner lanes. An APU HK kills a USA OWP. The nukes are in flight — they'll detonate next turn. USA leads. ${scoreStr}.`,
+      15:`💥 <b>Turn 15 — nukes detonate, no targets.</b> The ring-2 hexes are empty — both nukes blast nothing but vacuum. Meanwhile USA's HK executes a second OWP kill. USA crosses <b>200 VP</b> for the first time. ${scoreStr}.`,
+      16:`<b>Turn 16 — USA extends.</b> No kills. USA's EWR and COM network scores steadily. The 200 VP threshold has been breached — now it's about building a 200-point <em>gap</em>. ${scoreStr}.`,
+      17:`🎯 <b>Turn 17 — USA eliminates an APU HK.</b> The Hunter-Killer duel continues — USA lands a clean kill. USA leads by 18. ${scoreStr}.`,
+      18:`<b>Turn 18 — the quiet expanse.</b> No kills. Satellites orbit in silence, scoring their turn. USA maintains a comfortable but not decisive advantage. ${scoreStr}.`,
+      19:`<b>Turn 19 — APU strikes back.</b> An APU OWP finds a USA OWP in its sights and destroys it — diff 0, rolls <b>10</b> — exactly the threshold. APU claws back a few VP. ${scoreStr}.`,
+      20:`<b>Turn 20 — the long war.</b> Both fleets are veteran now — battered but still scoring. Neither side can land a knockout blow. ${scoreStr}.`,
+      21:`🎯 <b>Turn 21 — APU kills a USA HK.</b> A mid-ring ambush — APU's Hunter-Killer catches USA's last HK in a contested hex. USA's attack force is thinning. ${scoreStr}.`,
+      22:`<b>Turn 22 — grinding VP.</b> No kills. The satellite networks do all the work. USA leads but the gap is not yet decisive. ${scoreStr}.`,
+      23:`<b>Turn 23 — attrition favors the patient.</b> Both sides continue scoring from established positions. No decisive combat. ${scoreStr}.`,
+      24:`<b>Turn 24 — the race continues.</b> USA's lead holds steady. Both scoring nets are still productive, but USA's positioning is stronger. ${scoreStr}.`,
+      25:`🔄 <b>LEAD CHANGE — APU claws back!</b> An APU Hunter-Killer destroys a USA HK, and the scoring gap finally narrows enough for APU to inch ahead. <b>APU leads by 4</b> — the fifth lead change of the war. ${scoreStr}.`,
+      26:`<b>Turn 26 — APU extends briefly.</b> APU's scoring network is firing on all cylinders. The lead reaches 13. But USA's reserves are not exhausted. ${scoreStr}.`,
+      27:`🎯 <b>Turn 27 — APU kills again.</b> Another USA HK eliminated. USA's combat capacity is nearly gone. APU controls the rings. ${scoreStr}.`,
+      28:`<b>Turn 28 — USA holds the line.</b> No kills. USA's scoring satellites endure. The gap is narrowing from its peak. ${scoreStr}.`,
+      29:`🎯 <b>Turn 29 — USA eliminates an APU EWR.</b> A USA HK finds an APU Early Warning Recon in range — HIT, +3 VP. USA picks off the scoring satellite and chips back into the lead race. ${scoreStr}.`,
+      30:`<b>Turn 30 — the midgame peak.</b> Both networks score heavily. The war has lasted 30 turns — whoever stabilizes their lead now wins. ${scoreStr}.`,
+      31:`<b>Turn 31.</b> No kills. The orbital ballet continues — satellites weaving through contested hexes, every pass worth VP. ${scoreStr}.`,
+      32:`<b>Turn 32 — the decisive window opens.</b> USA's scoring is rebounding. APU's lead is eroding. The sixth lead change feels imminent. ${scoreStr}.`,
+      33:`🔄 <b>LEAD CHANGE — USA takes it back for good.</b> A fierce exchange — both sides score kills simultaneously. When the dust settles USA leads 314–312, a margin of just <b>2 VP</b>. This is the <em>last</em> lead change of the war. USA never falls behind again. ${scoreStr}.`,
+      34:`<b>Turn 34 — USA holds the line by a thread.</b> No kills. The VP networks churn. USA's 2-point lead is everything. ${scoreStr}.`,
+      40:`<b>Turn 40 — the long tail.</b> USA has been ahead for 7 straight turns. The margin is growing as USA's positioning gradually outperforms APU's. ${scoreStr}.`,
+      45:`<b>Turn 45 — USA pulls clear.</b> The lead has grown to double digits. APU is still fighting but the structural advantage has shifted to USA's scoring web. ${scoreStr}.`,
+      50:`<b>Turn 50 — the endgame grind.</b> USA's lead is substantial now. Both fleets are shadows of their opening formations but USA's satellites have the better angles. ${scoreStr}.`,
+      55:`<b>Turn 55 — closing in.</b> USA is approaching the 200-VP gap. APU keeps scoring but cannot close the distance. ${scoreStr}.`,
+      59:`<b>Turn 59 — one turn left.</b> USA needs to hold what it has. APU needs a miracle. ${scoreStr}.`,
+      60:`🏆 <b>USA wins the 60-turn war — 511 to 483.</b> A margin of just 28 VP across 60 turns and six lead changes. The turning point: Turn 11, when a single HK rolled exactly <b>7</b> to take the lead by one point — and USA never truly let go. Final: <span class="usa">USA ${usa}VP</span> vs <span class="apu">APU ${apu}VP</span>.`,
     };
 
     switch(phase){

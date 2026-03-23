@@ -23,7 +23,7 @@ Open `orbit-war.html` in any modern browser. No installation, no build step, no 
 | **Total War** | Symmetric 100 vs 100 pts. Full force composition. Ends at a 200 VP lead or when the turn limit is reached. |
 | **⚡ Easy Start** | Loads a pre-built Total War force for both sides, random placement, straight to Turn 1. |
 | **📡 Tutorial** | Interactive 17-step spotlight walkthrough on a live board. Covers two full turns, every mechanic explained in context. Hands off to live play at the Combat phase. |
-| **🎬 Watch a Game** | Demo autoplay (seed 6024). AI controls both sides at SLOW / NORMAL / FAST speed. |
+| **🎬 Watch a Game** | Demo autoplay (seed 6018). AI controls both sides at SLOW / NORMAL / FAST speed. 6 lead changes, USA wins 511–483 by 28 VP. |
 
 A second **Quick Tutorial** strip in the bottom bar is available mid-session.
 
@@ -398,7 +398,7 @@ When a side is AI-controlled:
   attacks, alternating via `_aiOneCombatStep()` until all attackers are exhausted.
 - A **Take Control** button appears during an AI countdown so a human can interrupt and take over.
 - When both sides are AI-controlled the game runs continuously until a win condition is met (useful for
-  watching a full game — see the Demo / Watch a Game mode which uses seed 6024).
+  watching a full game — see the Demo / Watch a Game mode which uses seed 6018).
 
 ---
 
