@@ -6347,11 +6347,28 @@ class AIPlayer {
       if(r.ok)used++;
     }
 
-    // 2. Deep-space reinforcements: bring ALL available units (not just 1)
-    eng.getDeepSpaceUnits(side).filter(u=>!u.launched).forEach(u=>{
-      const c=hexRing({q:0,r:0},10).filter(h=>this._totalCount(h)<2);
-      if(c.length) eng.bringInDeepSpace(u.id,c[0]);
-    });
+    // 2. Deep-space reinforcements: metered entry — 1 per turn normally,
+    //    +1 if badly behind in VP, +1 if side has very few active units.
+    //    Priority: OWP with nukes > OWP > HK > CJS/others.
+    const deepQueue=eng.getDeepSpaceUnits(side).filter(u=>!u.launched)
+      .sort((a,b)=>{
+        const rank=u=>u.typeId==='OWP'&&(u.weapons?.nukes||0)>0?0:
+                       u.typeId==='OWP'?1:u.typeId==='HK'?2:3;
+        return rank(a)-rank(b);
+      });
+    if(deepQueue.length){
+      const opp=side==='usa'?'apu':'usa';
+      const vpDiff=eng.state.vp[opp]-eng.state.vp[side]; // positive = we're behind
+      const activeCount=eng.state.units.filter(u=>u.side===side&&!u.destroyed&&u.hex).length;
+      let quota=1;
+      if(vpDiff>30) quota++;      // bring in extra when behind
+      if(activeCount<5) quota++;  // bring in extra when board presence is thin
+      quota=Math.min(quota,deepQueue.length);
+      for(let i=0;i<quota;i++){
+        const c=hexRing({q:0,r:0},10).filter(h=>this._totalCount(h)<2);
+        if(c.length) eng.bringInDeepSpace(deepQueue[i].id,c[0]);
+      }
+    }
 
     // 3. OLR launches (nukes & missiles)
     eng.resetOLRCounters(side);
