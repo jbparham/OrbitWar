@@ -4285,27 +4285,25 @@ class UI {
         : units.filter(u=>u.side===s.activePlayer&&!u.faceDown&&!u.destroyed&&!(isMovePhase&&u.typeId==='MINE'));
       const theirs=units.filter(u=>u.side!==s.activePlayer&&!u.faceDown&&!u.destroyed);
 
-      // During launch phase: clicking an OLR-capable launcher opens the inline OLR picker
       const isLaunchPhase=['LAUNCH_A','LAUNCH_B'].includes(s.phase);
-      if(isLaunchPhase){
-        const launcher=selectable.find(u=>u.type&&u.type.canOLR&&u.weapons&&
-          (u.weapons.mines>0||u.weapons.missiles>0||u.weapons.nukes>0)&&
-          (u.olrsFiredThisTurn||0)<3&&!u.attackedThisTurn);
-        if(launcher){
-          this._showOLRPicker(launcher);
-          return;
-        }
+
+      // Multiple selectable units in this hex — show picker so player chooses
+      if(selectable.length>1){
+        this._showUnitPicker(selectable,isMovePhase,isLaunchPhase);
+        return;
       }
 
-      if(selectable.length){
+      // Single unit — run the normal selection / OLR shortcut
+      if(selectable.length===1){
         const u=selectable[0];
-        this.sel=u; this.ren.setSelected(u); this._showUnitPanel(u);
-        // Auto-enter move mode during Optional Movement
-        if(isMovePhase&&u.side===s.activePlayer&&!u.moved&&!u.launched){
-          this.mode='move';
-          this._setStatus(`${u.type.short} selected — click destination (green = valid), or click unit again to cancel`);
-          this._updateActionBar();
+        // During launch phase: clicking an OLR-capable launcher opens the inline OLR picker
+        if(isLaunchPhase&&u.type?.canOLR&&u.weapons&&
+           (u.weapons.mines>0||u.weapons.missiles>0||u.weapons.nukes>0)&&
+           (u.olrsFiredThisTurn||0)<3&&!u.attackedThisTurn){
+          this._showOLRPicker(u);
+          return;
         }
+        this._pickUnit(u,isMovePhase);
       } else if(theirs.length){
         const u=theirs[0];
         const effDef=this.eng._effDef(u);
@@ -4481,6 +4479,76 @@ class UI {
   }
 
   // ═══════════════════════════════════════════════════════
+  // ═══════════════════════════════════════════════════════
+  // UNIT PICKER — choose one unit when a hex has multiple
+  // ═══════════════════════════════════════════════════════
+
+  // Apply the selection for a single unit (shared by direct click and picker)
+  _pickUnit(u, isMovePhase){
+    const s=this.eng.state;
+    this.sel=u; this.ren.setSelected(u); this._showUnitPanel(u);
+    if(isMovePhase&&u.side===s.activePlayer&&!u.moved&&!u.launched){
+      this.mode='move';
+      this._setStatus(`${u.type.short} selected — click destination (green = valid), or click unit again to cancel`);
+      this._updateActionBar();
+    }
+    this._updateUI();
+  }
+
+  // Show a dialog listing all units in a multi-unit hex so the player can pick one
+  _showUnitPicker(selectable, isMovePhase, isLaunchPhase){
+    const s=this.eng.state;
+    const rows=selectable.map(u=>{
+      const w=u.weapons;
+      const wepParts=w?[
+        w.missiles>0?`Msl:${w.missiles}`:'',
+        w.mines>0?`Mn:${w.mines}`:'',
+        w.nukes>0?`Nk:${w.nukes}`:''
+      ].filter(Boolean).join(' '):'';
+      const spent=(u.moved&&isMovePhase)||(u.attackedThisTurn&&s.phase==='COMBAT');
+      const isOLR=isLaunchPhase&&u.type?.canOLR&&w&&
+        (w.mines>0||w.missiles>0||w.nukes>0)&&(u.olrsFiredThisTurn||0)<3&&!u.attackedThisTurn;
+      const tag=isOLR?`<span style="font-size:9px;color:var(--orbit);margin-left:4px">OLR</span>`:'';
+      return`<div class="launch-unit-row" id="upick-${u.id}"
+        style="cursor:pointer;padding:9px 14px;opacity:${spent?.4:1};transition:background .1s"
+        onmouseenter="this.style.background='rgba(255,255,255,.06)'"
+        onmouseleave="this.style.background=''">
+        <span class="badge ${u.side}">${u.side.toUpperCase()}</span>
+        <span style="font-family:var(--mono);font-size:11px;margin-left:8px;flex:1">${u.type.name}${tag}</span>
+        ${wepParts?`<span style="font-family:var(--mono);font-size:10px;color:var(--dim)">${wepParts}</span>`:''}
+        <span style="font-family:var(--mono);font-size:10px;color:var(--dim);margin-left:10px">
+          ATK:${u.type.atk} DEF:${u.type.def} MOV:${u.type.mov}</span>
+        ${spent?`<span style="font-size:9px;color:var(--dim);margin-left:8px">spent</span>`:''}
+      </div>`;
+    }).join('');
+
+    const ring=selectable[0]?.hex?getRing(selectable[0].hex):'?';
+    this._openDlg(`
+      <div class="dlg-hd">
+        <h2>Choose Unit</h2>
+        <span style="color:var(--dim);font-size:11px">${selectable.length} units · Ring ${ring}</span>
+      </div>
+      <div style="padding:4px 0">${rows}</div>
+      <div class="dlg-ft"><button class="btn-s" id="upick-cancel">Cancel</button></div>
+    `);
+
+    document.getElementById('upick-cancel').addEventListener('click',()=>this._closeDlg());
+    selectable.forEach(u=>{
+      document.getElementById('upick-'+u.id)?.addEventListener('click',()=>{
+        this._closeDlg();
+        // If it's an OLR-capable launcher in launch phase, go straight to OLR picker
+        const w=u.weapons;
+        if(isLaunchPhase&&u.type?.canOLR&&w&&
+           (w.mines>0||w.missiles>0||w.nukes>0)&&
+           (u.olrsFiredThisTurn||0)<3&&!u.attackedThisTurn){
+          this._showOLRPicker(u);
+          return;
+        }
+        this._pickUnit(u,isMovePhase);
+      });
+    });
+  }
+
   // UNIT PANEL — selected unit info
   // ═══════════════════════════════════════════════════════
   _showUnitPanel(u){
