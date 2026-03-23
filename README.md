@@ -8,7 +8,7 @@ Victory Points until one side leads by 200 VP.
 > Design: Wallace Wang | Development: Steve Jackson
 
 ![Original Game](physical_game.jpeg)
-![Digital Game](digital.png)
+# ![Digital Game](digital.png)
 
 ---
 
