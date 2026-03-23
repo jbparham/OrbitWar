@@ -1792,9 +1792,9 @@ class Engine {
       const inner=nb.find(n=>getRing(n)<r);
       if(inner){ u.hex=inner; return; }
     }
-    // At ring 1 with nowhere to retreat — unit is pulled into Earth’s atmosphere.
+    // At ring 1 with nowhere to retreat — unit is pulled into Earth's atmosphere.
     // Opponent scores kill VP (forcing a unit to ring-1 decay is a valid kill).
-    const opp=u.side===’usa’?’apu’:’usa’;
+    const opp=u.side==='usa'?'apu':'usa';
     if(!this.state.atmoEvents) this.state.atmoEvents=[];
     this.state.atmoEvents.push({side:u.side,typeShort:u.type.short});
     this._destroy(u,opp); // awards vpKill to opponent, marks destroyed
@@ -6424,7 +6424,7 @@ class AIPlayer {
   // ── Movement phase ────────────────────────────────────────────
   _aiMove(side){
     const eng=this.eng;
-    const MAX_FRIENDLY=3; // hard cap: never stack more than 3 friendly units in one hex
+    const MAX_FRIENDLY=2; // hard cap: never stack more than 2 friendly units in one hex (keeps total density ≤4 in contested hexes)
 
     eng.state.units
       .filter(u=>u.side===side&&!u.destroyed&&u.hex&&!u.moved&&!u.launched&&u.typeId!=='MINE')
