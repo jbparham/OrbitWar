@@ -6373,6 +6373,8 @@ class AIPlayer {
     // 3. OLR launches (nukes & missiles)
     eng.resetOLRCounters(side);
     const myVP=eng.state.vp[side];
+    // Track hexes already targeted this turn so multiple launchers spread fire
+    const alreadyTargeted=new Set();
     eng.getOLRLaunchers(side).forEach(launcher=>{
       let fired=0;
       // Nuke: only fire if VP can absorb penalty and expected gain is positive
@@ -6380,13 +6382,17 @@ class AIPlayer {
         const nukeHex=this._bestNukeTarget(launcher.hex,side);
         if(nukeHex){
           const r=eng.fireOLR(launcher.id,'NUKE',nukeHex);
-          if(r.ok)fired++;
+          if(r.ok){fired++;alreadyTargeted.add(`${nukeHex.q},${nukeHex.r}`);}
         }
       }
-      // Missiles: prioritize high-value targets, then area denial
+      // Missiles: prioritize high-value targets, spread fire across different hexes
+      const launcherTargeted=new Set(); // per-launcher: don't double-tap same hex
       while(fired<3&&launcher.weapons?.missiles>0){
         const inRange=hexesInRange(launcher.hex,3).filter(h=>{
-          const r=getRing(h);return r>=1&&r<=10&&(h.q!==launcher.hex.q||h.r!==launcher.hex.r);
+          const r=getRing(h);
+          const key=`${h.q},${h.r}`;
+          return r>=1&&r<=10&&(h.q!==launcher.hex.q||h.r!==launcher.hex.r)
+            &&!launcherTargeted.has(key)&&!alreadyTargeted.has(key);
         });
         // Score each target hex: value of enemy units present
         const unitVal={SS:100,OWP:40,HK:30,EWR:20,CJS:15,COM:10,SHUTTLE:8,SUPPLY:5,SF:1};
@@ -6401,7 +6407,12 @@ class AIPlayer {
         const dest=scored.length?scored[0].h:ring1.length?ring1[0]:null;
         if(!dest)break;
         const r=eng.fireOLR(launcher.id,'MISSILE',dest);
-        if(r.ok)fired++;else break;
+        if(r.ok){
+          fired++;
+          const key=`${dest.q},${dest.r}`;
+          launcherTargeted.add(key);
+          alreadyTargeted.add(key);
+        }else break;
       }
     });
   }
