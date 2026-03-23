@@ -1,111 +1,149 @@
 # Orbit War — The Digital Frontier
 
-A browser-based digital adaptation of *Orbit War* © 1992 Steve Jackson Games, design by Wallace Wang.
-Two players command satellite fleets in near-Earth orbit, firing missiles, laying mines, and accumulating
-Victory Points until one side leads by 200 VP.
+*Orbit War* © 1992 Steve Jackson Games, design by Wallace Wang.
 
-> **Original game:** *Orbit War* © 1992 Steve Jackson Games
-> Design: Wallace Wang | Development: Steve Jackson
+Two superpowers fight for dominance of near-Earth space. You build a satellite fleet — weapons platforms, hunter-killers, recon birds, mines — and spend turns maneuvering them through orbital mechanics while accumulating Victory Points. The first side to open a **200 VP lead** wins. Every satellite in the enemy's spotting cone scores against you. Every Hunter-Killer you lose costs you attack power. Every nuke you fire costs you 10 VP — unless the kill is worth it.
+
+This is a browser-based digital adaptation. Single HTML file, no install, no server.
 
 ![Original Game](physical_game.jpeg)
 
 ---
 
-## How to Play (Web Game)
+## Table of Contents
+
+- [Getting Started](#getting-started)
+- [Scenarios](#scenarios)
+- [The Map](#the-map)
+  - [Rings and Orbital Speed](#rings-and-orbital-speed)
+  - [Spotting Cones](#spotting-cones)
+- [Turn Sequence](#turn-sequence)
+- [Units](#units)
+  - [Satellites and Platforms](#satellites-and-platforms)
+  - [Weapons](#weapons)
+  - [Unit Costs by Deployment Zone](#unit-costs-by-deployment-zone)
+- [Movement](#movement)
+  - [Orbital Movement](#orbital-movement-mandatory)
+  - [Optional Movement](#optional-movement)
+  - [Launches and Reinforcements](#launches-and-reinforcements)
+- [Combat](#combat)
+  - [Combat Results Table](#combat-results-table-crt)
+  - [Normal Combat Rules](#normal-combat-rules)
+  - [CJS Effect on Combat](#cjs-effect-on-combat)
+  - [Mine Combat](#mine-combat)
+  - [Missile Combat](#missile-combat)
+  - [Nukes and Suicide Nukes](#nukes-and-suicide-nukes)
+- [Victory Points and Win Conditions](#victory-points-and-win-conditions)
+- [Supply and Resupply](#supply-and-resupply)
+- [Setup](#setup)
+- [Key Rules Quick Reference](#key-rules-quick-reference)
+- [AI Player](#ai-player)
+- [UI Guide](#ui-guide)
+- [Save / Load](#save--load)
+- [Known Gaps vs. Original Rulebook](#known-gaps-vs-original-rulebook)
+- [Architecture](#architecture)
+- [Credits](#credits)
+
+---
+
+## Getting Started
 
 Open `orbit-war.html` in any modern browser. No installation, no build step, no server required.
 
-### Entry Points
-
 | Option | Description |
 |--------|-------------|
+| **⚡ Easy Start** | Best for a first game. Loads a pre-built Total War force for both sides with random placement — straight to Turn 1. |
+| **📡 Tutorial** | Interactive 17-step spotlight walkthrough on a live board. Covers two full turns with every mechanic explained in context. Hands off to live play at the Combat phase. |
+| **🎬 Watch a Game** | Autoplay demo (seed 6018). AI controls both sides at SLOW / NORMAL / FAST speed. 6 lead changes, USA wins 511–483 by 28 VP. Good way to learn before playing. |
+| **Total War** | Symmetric 100 vs 100 pts. Full force composition. Ends when one side leads by 200 VP. |
 | **Blockade** | Asymmetric 12-turn scenario. APU (45 pts) vs USA (35 pts). Unbalanced by design — play twice and swap sides. |
-| **Total War** | Symmetric 100 vs 100 pts. Full force composition. Ends at a 200 VP lead or when the turn limit is reached. |
-| **⚡ Easy Start** | Loads a pre-built Total War force for both sides, random placement, straight to Turn 1. |
-| **📡 Tutorial** | Interactive 17-step spotlight walkthrough on a live board. Covers two full turns, every mechanic explained in context. Hands off to live play at the Combat phase. |
-| **🎬 Watch a Game** | Demo autoplay (seed 6018). AI controls both sides at SLOW / NORMAL / FAST speed. 6 lead changes, USA wins 511–483 by 28 VP. |
 
-A second **Quick Tutorial** strip in the bottom bar is available mid-session.
+A **Quick Tutorial** strip in the bottom bar is also available mid-game at any time.
+
+---
+
+## Scenarios
+
+### Total War (Strategic Campaign)
+
+| Side | Points | Win Condition |
+|------|:------:|---------------|
+| USA | 100 | Lead by **200 VP** at end of any Scoring phase |
+| APU | 100 | Lead by **200 VP** at end of any Scoring phase |
+
+The full game. Both sides have equal budgets to build diverse fleets. Expect 30–60 turns of orbital maneuvering, attrition, and VP grinding.
+
+### Blockade
+
+| Side | Points | Win Condition |
+|------|:------:|---------------|
+| APU | 45 | Most VPs after turn 12 |
+| USA | 35 | Most VPs after turn 12 |
+
+Deliberately asymmetric and imbalanced. APU has more resources; USA must play efficiently. Recommended to play twice, swapping sides.
+
+**Cease-fire (§23, board game only):** If 18 or more consecutive turns pass without either player detonating a nuke or destroying an enemy unit, the game ends in a cease-fire and the player with more VPs wins. Not tracked in the web game.
 
 ---
 
 ## The Map
 
-### Orbit Lines and Rings
+### Rings and Orbital Speed
 
-The board is a hex grid representing near-Earth space. Concentric **Orbit Lines** are numbered outward from Earth. In the web game these are referred to as **rings 1–10**; the original board labels them with fractional movement rates (see table below). Each ring determines how far a satellite **must** move during Orbital Movement — this movement is always **counterclockwise** and **mandatory**. No satellite may voluntarily stay still.
+The board is a hex grid representing near-Earth space. Concentric **Orbit Lines** are numbered outward from Earth — the web game calls them **rings 1–10**. Each ring determines how far a satellite **must** drift during Orbital Movement. Movement is always **counterclockwise** and always **mandatory** — no satellite may voluntarily stay still.
 
-| Ring (web) | Board label | Speed (hexes/turn) | Notes |
-|:---:|:---:|:---:|---|
-| 1 | 4 | 4 | Innermost — retreat here causes atmospheric decay |
-| 2 | 3 | 3 | |
-| 3 | 3 | 3 | |
-| 4 | 2 | 2 | |
-| 5 | 2 | 2 | |
-| 6 | 1 | 1 | |
-| 7 | 1 | 1 | |
-| 8 | ½ | ½ (even turns only) | |
-| 9 | ½ | ½ (even turns only) | |
-| 10 | ⅓ | ⅓ (turns 3, 6, 9…) | Deep Space entry point |
+| Ring | Board Label | Speed | Notes |
+|:----:|:-----------:|:-----:|-------|
+| 1 | 4 | 4 hex/turn | Innermost — retreat here causes atmospheric decay |
+| 2 | 3 | 3 hex/turn | |
+| 3 | 3 | 3 hex/turn | |
+| 4 | 2 | 2 hex/turn | |
+| 5 | 2 | 2 hex/turn | |
+| 6 | 1 | 1 hex/turn | |
+| 7 | 1 | 1 hex/turn | |
+| 8 | ½ | Every even turn | |
+| 9 | ½ | Every even turn | |
+| 10 | ⅓ | Turns 3, 6, 9… | Deep Space entry point |
 
-> **Board game note:** Fractional-line satellites require careful multi-turn tracking. Use a notepad to
-> record which turns each fractional satellite is due to move. The web game handles this automatically.
+> **Board game note:** Fractional-rate satellites require careful multi-turn tracking. Use a notepad to record which turns each satellite is due to move. The web game handles this automatically.
 
 ### Spotting Cones
 
-Each country has a **Spotting Cone** — a wedge-shaped region representing national radar coverage.
-Spotting Cones extend along opposite map edges. They are critical for scoring:
+Each side has a **Spotting Cone** — a wedge-shaped radar coverage zone extending along opposite map edges. Cones are critical for scoring:
 
-- **EWR** satellites score 3 VP/turn when inside the *enemy* cone.
-- **COM** satellites score 2 VP/turn when over *friendly* territory.
-- **CJS** satellites score 2 VP/turn when over *friendly* territory.
+| Unit | Scoring condition | VP/turn |
+|------|-------------------|:-------:|
+| EWR | Inside the *enemy* Spotting Cone | +3 |
+| COM | Over *friendly* territory | +2 |
+| CJS | Over *friendly* territory | +2 |
 
-Every 4th turn, **Earth Rotation** shifts both cones by 60° (one hex-side). The web game handles this
-automatically in the Turn Track phase. On the board, the Earth counter is advanced and cone positions
-re-evaluated.
+Every **4th turn**, Earth Rotation shifts both cones 60° (one hex-side). The web game handles this automatically during the Turn Track phase.
 
-> **Web game:** The cone apex tracks the Earth hex precisely during zoom and pan (`h2p({q:0,r:0})`).
+> A CJS within radius 2 of an EWR jams it — the EWR scores 0 VP that turn, regardless of whose CJS it is.
 
 ---
 
 ## Turn Sequence
 
-### Web Game (9 Phases)
+Each turn runs through 9 phases in order. The web game enforces the sequence automatically — passive phases execute instantly; manual phases wait for player input.
 
-| # | Phase | Auto/Manual | Notes |
-|---|-------|:-----------:|-------|
-| 1 | **Turn Track** | Auto | Advances turn counter. Earth rotates every 4th turn. Missiles in flight expire. VP snapshot taken for delta display. |
-| 2 | **Orbital Movement** | Auto | All satellites sweep CCW by their ring speed. Mandatory, no exceptions. |
-| 3 | **Player A Launches** | Manual | Up to 3 ELR launches from Earth (rings 1–3 only). OWPs/Space Stations/Shuttles in orbit may fire OLRs (max 3 per launcher, max 1 nuke per launcher). |
+| # | Phase | Mode | What Happens |
+|---|-------|:----:|--------------|
+| 1 | **Turn Track** | Auto | Turn counter advances. Earth rotates every 4th turn. Missiles in flight expire. VP snapshot taken for the delta display. |
+| 2 | **Orbital Movement** | Auto | All satellites sweep CCW by their ring speed. Mandatory — no exceptions. |
+| 3 | **Player A Launches** | Manual | Up to 3 ELR launches from Earth (rings 1–3 only). OWPs / Space Stations / Shuttles in orbit may fire OLRs (max 3 per launcher, max 1 nuke per launcher). |
 | 4 | **Player B Launches** | Manual | Same as above for Player B. |
 | 5 | **Player A Move** | Manual | Optional movement up to MA hexes in any direction. +1 free hex toward Earth (gravity assist). Resupply available (blocks attack that turn). |
 | 6 | **Player B Move** | Manual | Same as above for Player B. |
-| 7 | **Mine Combat** | Auto | Mines (ATK 6), missiles (ATK 5), and nukes (ATK 5, −10 VP) fire against all enemy units in their hex. Mines cannot fire on the turn they were placed. |
-| 8 | **Normal Combat** | Manual | Both players attack using the CRT. Each unit may attack once only. |
-| 9 | **Scoring** | Auto | VPs awarded; win condition checked. Summary toast displayed. |
+| 7 | **Mine Combat** | Auto | Nukes detonate, then missiles fire, then mines fire — in that priority order. Each resolves against every enemy unit in the same hex. |
+| 8 | **Normal Combat** | Manual | Both players attack using the CRT, alternating turns. Each unit may attack once only. |
+| 9 | **Scoring** | Auto | VPs awarded; win condition checked; scoring summary displayed. |
 
-### Original Board Game (9 Phases)
+**Player order:** Player A goes first on odd-numbered turns; Player B goes first on even turns. Player A is determined by the higher die roll during setup.
 
-The board game uses the same sequence but with two structural differences: Earth Rotation is a
-**separate named phase** (phase 2), and there is no dedicated Scoring phase — VP scoring is understood
-to occur at the end of each turn.
+**Newly launched satellites skip Optional Movement** on their arrival turn — Orbital Movement only.
 
-| # | Phase |
-|---|-------|
-| 1 | Turn Track |
-| 2 | Earth Rotation |
-| 3 | Orbital Movement |
-| 4 | First Player Launches |
-| 5 | Second Player Launches |
-| 6 | First Player Optional Movement |
-| 7 | Second Player Optional Movement |
-| 8 | Mine Combat |
-| 9 | Normal Combat |
-
-> **Player order:** Player A goes first on odd-numbered turns; Player B goes first on even turns.
-> Player A is determined by the higher die roll during setup.
-
-> **Newly launched satellites skip Optional Movement** on the turn they arrive — Orbital Movement only.
+> **Original board game (9 phases):** Earth Rotation is a separate named phase (phase 2) and there is no dedicated Scoring phase — VP scoring is understood to occur at the end of the turn.
 
 ---
 
@@ -113,22 +151,35 @@ to occur at the end of each turn.
 
 ### Satellites and Platforms
 
-| Unit | ATK | DEF | MOV | Token | VP Kill | Key Rule |
-|------|:---:|:---:|:---:|-------|:-------:|----------|
-| **OWP** — Orbital Weapons Platform | 1 | 2 | 1 | Diamond | 1 | Fires OLRs (max 3/turn, max 1 nuke/turn). Cannot attack same turn it fires OLRs (§17). Carries up to 10 weapons. May lay mines directly in own hex (no rocket needed). Cannot carry other satellites. |
-| **HK** — Hunter-Killer | 4 | 3 | 2 | Pentagon | 1 | Primary combat unit. May carry and use missiles. No special rules beyond standard combat. |
-| **SS** — Space Station *(Advanced)* | 4 | 4 | 1 | Wide rect | 10 | Costs 12 pts. Orbit only (no Earth or Deep Space cost). Fires OLRs. Stores and transfers weapons. Can carry satellites as cargo and release them in orbit. Worth 10 VP if destroyed. |
-| **EWR** — Early Warning Recon | 0 | 1 | 1 | Tall rect | 3 | Scores **3 VP/turn** inside enemy Spotting Cone. Jammed (0 VP) if inside *any* CJS radius 2 (friendly or enemy). |
-| **COM** — Communications Sat *(Advanced)* | 0 | 1 | 1 | Rounded square | 0 | Scores **2 VP/turn** over friendly territory. |
-| **CJS** — Comm Jamming Satellite | 0 | 1 | 2 | Hexagon | 0 | Scores **2 VP/turn** over friendly territory. Radius 2 area effect: +1 DEF friendly, −1 DEF enemy, 50% missile jam (roll 1–3 on d6), jams EWRs. CJS gains +1 DEF from its own effect. |
-| **SF** — Special Forces | 3 | 2 | 1 | Rounded square | 1 | 12-turn orbital limit; removed at expiry (opponent scores VPs). Cannot be a Deep Space reinforcement. After 3 turns on Earth may return via rocket or Shuttle. May attack on the same turn they discharge from a rocket. |
-| **Shuttle** | 2 | 1 | 2 | Rounded square | 3 | Fires OLRs. Carries up to 12 weapons (10 in Supply counter + 2 loose) plus one ELR or SF as cargo. Cannot be a Deep Space reinforcement. Cannot attack on the turn it resupplies or is resupplied. |
-| **Supply Counter** | — | 1 | 0 | Octagon | — | Carries up to 10 weapons. OWP/Shuttle/SS in same hex may draw from it during movement (blocks attack that turn). Removed when empty. Enemy supplies may be captured and used — but not against their original owner (§12.2). |
+| Unit | ATK | DEF | MOV | Token | Kill VP | Key Rule |
+|------|:---:|:---:|:---:|:-----:|:-------:|----------|
+| **OWP** — Orbital Weapons Platform | 1 | 2 | 1 | Diamond | 1 | Fires OLRs (max 3/turn, max 1 nuke/turn). Cannot attack in Normal Combat on the same turn it fires OLRs (§17). May lay mines in its own hex without a rocket. |
+| **HK** — Hunter-Killer | 4 | 3 | 2 | Pentagon | 1 | Primary combat unit. High ATK, moderate DEF, good mobility. |
+| **SS** — Space Station *(Advanced)* | 4 | 4 | 1 | Wide rect | 10 | Costs 12 pts. Orbit only. Fires OLRs. Stores and transfers weapons. Can carry satellites as cargo. **Worth 10 VP if destroyed — a prime target.** |
+| **EWR** — Early Warning Recon | 0 | 1 | 1 | Tall rect | 3 | No attack. Scores **3 VP/turn** inside the enemy Spotting Cone. Jammed to 0 VP by any CJS within radius 2. |
+| **COM** — Communications Sat *(Advanced)* | 0 | 1 | 1 | Rounded sq | 0 | No attack. Scores **2 VP/turn** over friendly territory. |
+| **CJS** — Comm Jamming Satellite | 0 | 1 | 2 | Hexagon | 0 | Scores **2 VP/turn** over friendly territory. Radius-2 field: +1 DEF to friendly units, −1 DEF to enemies, 50% missile jam, jams EWRs. Gains +1 DEF from its own field (effective DEF 2). |
+| **SF** — Special Forces | 3 | 2 | 1 | Rounded sq | 1 | 12-turn orbital limit; removed at expiry (opponent scores VP). Cannot be a Deep Space reinforcement. May attack on the same turn they discharge from a rocket. |
+| **Shuttle** | 2 | 1 | 2 | Rounded sq | 3 | Fires OLRs. Carries up to 12 weapons plus one ELR or SF as cargo. Cannot attack on the turn it resupplies or is resupplied. |
+| **Supply Counter** | — | 1 | 0 | Octagon | — | Carries up to 10 weapons. OWP / Shuttle / SS in the same hex may draw from it during movement (blocks attack that turn). Removed when empty. |
 
-> **Board game note (COM and SS):** COM satellites (§26) and Space Stations (§25) are **Advanced Rules**
-> content in the original rulebook. They are included in the web game's base experience.
+> **COM and SS** are Advanced Rules content in the original rulebook. They are included in the web game's base experience.
+
+### Weapons
+
+| Weapon | ATK | Notes |
+|--------|:---:|-------|
+| **Mine** | 6 | Stationary. Auto-fires during Mine Combat every turn against all enemies in its hex. Cannot fire the turn it is placed (orange **NEW** badge). |
+| **Missile** | 5 | Launched via OLR. Auto-fires during Mine Combat phase on the following turn, then is removed. 50% chance of being jammed by a CJS in its path. |
+| **Nuke** | 5 | Launched via OLR. Detonates during Mine Combat phase. **Blast radius 1** — hits all units (friend and foe) within 1 hex. The first nuke fired costs **−10 VP** to the firing player. |
+| **3-MIRV** | 5 | Board game: splits into 3 independent warheads. Web game: fires as a single nuke. |
+| **7-MIRV** | 5 | Board game: splits into 7 independent warheads. Web game: fires as a single nuke. |
+| **ELR** | — | Earth-Launched Rocket. Carries one satellite to rings 1–3. Max 3 per turn per side. Costs 0.5 pts each. |
+| **OLR** | — | Orbit-Launched Rocket. Fired from OWPs, Shuttles, or Space Stations. Free, range 3 hexes. Max 3 per launcher per turn, max 1 nuke per launcher per turn. |
 
 ### Unit Costs by Deployment Zone
+
+Units bought during setup are cheaper the further from Earth they start. Deep Space units appear at ring 10 without requiring an ELR launch.
 
 | Unit | In Orbit | Deep Space | On Earth |
 |------|:--------:|:----------:|:--------:|
@@ -141,7 +192,7 @@ to occur at the end of each turn.
 | Shuttle | 4 | — | 2 |
 | Space Station | 12 | — | — |
 | ELR | — | — | 0.5 |
-| OLR | 0 (free) | 0 (free) | 0 (free) |
+| OLR | 0 | 0 | 0 |
 | Mine | 0.5 | 0.5 | 0.5 |
 | Missile | 0.5 | 0.5 | 0.5 |
 | Nuke | 1 | 1 | 1 |
@@ -149,54 +200,31 @@ to occur at the end of each turn.
 | 7-MIRV | 8 | 8 | 8 |
 | Suicide Nuke (add-on) | +1 | +1 | +1 |
 
-### Weapons
-
-| Weapon | ATK | MOV | Notes |
-|--------|:---:|:---:|-------|
-| **Mine** | 6 | 0 | Stationary. Auto-fires Mine Combat every turn. Cannot fire turn placed (orange NEW badge). May be carried by OWPs, HKs, Shuttles, and Space Stations. |
-| **Missile** | 5 | 2 | One turn only; auto-fires then removed. **No physical counter** — tracked on paper. Max range 5 hexes (board game). |
-| **Nuke** | 5 | — | Must be launched via OLR. Costs owner **−10 VP** on detonation. |
-| **3-MIRV** | 5 | — | Board game: splits into 3 independent warheads aimed at separate hexes. Web game: fires as a single nuke (not yet implemented). |
-| **7-MIRV** | 5 | — | Board game: splits into 7 independent warheads. Web game: fires as a single nuke (not yet implemented). |
-| **ELR** | 0 | 3 | Launches from Earth. Reaches rings 1–3. Max 3 per turn. Costs 0.5 pts each. Carries one satellite or payload. |
-| **OLR** | 0 | 3 | Launched from OWPs, Shuttles, or Space Stations in orbit. Free and unlimited. Range 3 hexes. Max 3 per launcher per turn, max 1 nuke per launcher per turn. Cannot carry satellites. |
-
 ---
 
 ## Movement
 
 ### Orbital Movement (Mandatory)
 
-Every satellite moves its ring-speed number of hexes counterclockwise. This cannot be skipped.
-Fractional-rate satellites (rings 8–10) move only on their designated turns.
+At the start of every turn, every satellite drifts counterclockwise by its ring speed (see the ring table above). This step is automatic and cannot be skipped or modified. Fractional-rate satellites on rings 8–10 only move on their designated turns.
 
 ### Optional Movement
 
-After Orbital Movement, each satellite may move up to its Movement Allowance (MA) in any direction,
-including changing rings (moving toward or away from Earth). This is voluntary.
+After Orbital Movement, each satellite may move up to its Movement Allowance (MA) in any direction — including changing rings (moving toward or away from Earth). This is voluntary.
 
-**Gravity Assist:** Any satellite may move **one extra hex toward Earth for free** during Optional
-Movement. This is in addition to the normal MA and is optional.
+**Gravity Assist:** Any satellite may move one extra hex toward Earth for free during Optional Movement, in addition to its normal MA.
 
-**Mines and weapons** carried by a satellite move with it automatically — they have no independent movement.
+Weapons and mines carried by a satellite move with it automatically.
 
-### Launches
+### Launches and Reinforcements
 
-**ELR (Earth-Launched Rocket):** Launched during the Launch phase from Earth. Carries one satellite or
-payload. The payload may be deployed during Optional Movement on the same turn (before, during, or after
-the carrier moves). Mines deployed from a rocket cannot fire on their first turn. Newly launched units
-skip Optional Movement on their arrival turn.
+**ELR (Earth-Launched Rocket):** Launched during the Launch phase. Carries one satellite or payload to rings 1–3. Max 3 ELR launches per side per turn. Newly launched satellites skip Optional Movement on arrival — Orbital Movement only.
 
-**OLR (Orbit-Launched Rocket):** Launched during the Launch phase from an OWP, Space Station, or
-Shuttle in orbit. Carries a warhead, mine, or dummy (decoy in the board game — not implemented in the
-web game). Deploys during Optional Movement.
+**OLR (Orbit-Launched Rocket):** Fired from an OWP, Space Station, or Shuttle in orbit during the Launch phase. Carries a missile, mine, or nuke up to 3 hexes. Free and reusable each turn. Max 3 per launcher, max 1 nuke per launcher per turn.
 
-### Reinforcements
-
-Satellites may be held off-map as reinforcements and brought in during the game:
-
-- **Earth Reinforcements:** Cheaper to buy; arrive via ELR, costing launch turns and ELR charges.
-- **Deep Space Reinforcements:** More expensive; appear at the ring 10 map edge without ELR cost.
+**Reinforcements:**
+- **Earth Reinforcements** — cheaper to purchase; arrive via ELR over multiple turns.
+- **Deep Space Reinforcements** — more expensive; enter at the ring 10 edge without ELR cost.
 
 ---
 
@@ -204,139 +232,76 @@ Satellites may be held off-map as reinforcements and brought in during the game:
 
 ### Combat Results Table (CRT)
 
-The web game uses the **2d6 dice-roll system** from the original rulebook CRT. Combat differential = total
-Attacker ATK − total Defender effective DEF (after CJS modifiers). Roll 2d6; if the sum meets or exceeds
-the threshold the result is **HIT** (Defender Eliminated); otherwise it is **MISS**.
+Combat uses **2d6 dice rolls** against a threshold determined by the combat differential.
 
-| Differential | Threshold | Approx. Odds |
-|:---:|:---:|:---:|
-| +5 or higher | 5+ | 83.3% |
-| +4 | 6+ | 72.2% |
-| +3 | 7+ | 58.3% |
-| +2 | 8+ | 41.6% |
-| +1 | 9+ | 27.7% |
-| 0 | 10+ | 16.6% |
-| −1 or −2 | 11+ | 8.3% |
-| −3 or lower | impossible | 0% |
+**Combat differential** = total ATK (all selected attackers) − total effective DEF (all selected defenders, after CJS modifiers).
 
-The combat dialog shows the threshold and odds before you commit the roll. You roll first, then choose
-whether to apply. Multiple attackers and multiple defenders can be selected — all their ATK and DEF values
-are summed for a single roll (stacked combat).
+Roll 2d6. If the sum **meets or exceeds** the threshold, the result is **HIT** (all selected defenders eliminated). Otherwise it is **MISS**.
 
-> **Note:** The web game's CRT produces only HIT or MISS (Defender Eliminated or no effect). The original
-> board game's full DR/EX/AR/AE retreat table is not used in the web implementation.
+| Differential | Roll Needed (2d6) | Odds |
+|:------------:|:-----------------:|:----:|
+| +5 or higher | 5 or better | 83.3% |
+| +4 | 6 or better | 72.2% |
+| +3 | 7 or better | 58.3% |
+| +2 | 8 or better | 41.6% |
+| +1 | 9 or better | 27.7% |
+| 0 | 10 or better | 16.6% |
+| −1 or −2 | 11 or better | 8.3% |
+| −3 or lower | Impossible | 0% |
+
+The combat dialog shows the differential, threshold, and odds before you roll. **Once you roll the dice the result is committed** — the Cancel button is hidden. Click **Apply** to resolve it.
+
+> **Note:** The web CRT produces only HIT or MISS. The original board game's full retreat table (DR/EX/AR/AE outcomes) is not used in the web implementation.
+
+### Normal Combat Rules
+
+- Each unit may **attack once** per turn.
+- A unit may be **attacked multiple times** per turn.
+- You may only attack enemies in the **same hex** as your attacking unit.
+- **Stacked combat:** Select multiple attackers and/or multiple defenders. Their ATK and DEF values are summed for a single 2d6 roll. All selected defenders are eliminated on a HIT.
+- **Alternating turns:** The player who goes first this turn makes one attack, then the opponent attacks, and so on until both sides are exhausted. The active side is shown in the action bar. A **Pass** button lets a side yield their attack turn.
+- **Unit picker:** When multiple units share a hex, clicking opens a picker dialog so you can select the exact unit you intend to act with.
 
 ### CJS Effect on Combat
 
-A CJS within radius 2 of the target hex applies:
-- **+1 DEF** to all friendly units in range (including itself)
+A CJS within **radius 2** of the target hex modifies all combat in that area:
+
+- **+1 DEF** to all friendly units in range (including the CJS itself)
 - **−1 DEF** to all enemy units in range
 
-These modifiers stack if multiple CJS units are in range. A CJS effectively has DEF 2 (1 printed + 1 from its own effect).
-
-### Combat Rules
-
-- Each unit may only **attack once** per turn.
-- A unit may be **attacked multiple times** in the same turn.
-- A player may attack any enemy unit in the **same hex**.
-- Mine Combat resolves **before** Normal Combat — mines can destroy or weaken units before they fight back.
-- **Stacked combat:** Multiple units on each side may be grouped into a single combined roll. All selected
-  attackers' ATK values are summed, all selected defenders' DEF values are summed, and one 2d6 roll
-  resolves the entire stack. All defending units are eliminated on a HIT.
-- **Alternating combat turns:** At the start of Normal Combat, the player who goes first this turn (Player A
-  on odd turns, Player B on even turns) makes one attack, then the opponent attacks, and so on, alternating
-  until both sides have exhausted their attackers. The current attacker's side is shown in the action bar.
-  A **Pass** button lets a side yield their turn if they choose not to attack.
-- **Unit picker:** When multiple friendly units occupy the same hex, clicking the hex opens a picker dialog
-  so you can choose exactly which unit to select or include in a stacked attack.
+Multiple CJS units stack. A CJS effectively has DEF 2 (1 printed + 1 from its own field).
 
 ### Mine Combat
 
-Mines (ATK 6) fire automatically against every enemy unit in their hex during the Mine Combat phase.
-A single mine may attack multiple enemies in the same hex in one turn.
+Mines (ATK 6) fire automatically during the Mine Combat phase against every enemy unit in their hex. A single mine may attack multiple enemies in the same hex in one turn. Mines cannot fire on the turn they are placed.
 
-> **Board game rule (§6, not implemented in web game):** A unit retreating into a mined hex during
-> retreat movement triggers that mine immediately.
+**Priority order within Mine Combat:** nukes detonate first, then missiles fire, then mines fire. A missile arriving at a mined hex can destroy the mine before the mine fires back.
+
+> **Board game rule (§6, not implemented):** A unit retreating into a mined hex during retreat movement triggers that mine immediately.
 
 ### Missile Combat
 
-Missiles (ATK 5) fire automatically during Mine Combat phase, then are removed.
+Missiles (ATK 5) fired via OLR arrive at their target hex and auto-fire during the Mine Combat phase on the following turn, then are removed.
 
-**CJS Jamming:** Any missile passing through a CJS radius-2 zone has a 50% chance of being destroyed
-(roll 1–3 on a d6). This is checked before the missile fires.
+**CJS Jamming:** Any missile traveling through a CJS radius-2 zone has a **50% chance of being destroyed** before it fires (roll 1–3 on a d6 = jammed).
 
-> **Board game note:** Missiles have a maximum range of 5 hexes. In the web game, missiles are delivered
-> to their target hex via OLR (range 3), so the 5-hex cap is rarely relevant and is not enforced separately.
+### Nukes and Suicide Nukes
 
-### Nuke and Suicide Nuke
+**OLR Nukes:** Placed via OLR, detonate during Mine Combat phase. Blast radius 1 — every unit (friend and foe) within 1 hex is a separate target, each resolved with its own 2d6 roll.
 
-- Nukes (ATK 5) placed by OLR auto-detonate during Mine Combat phase. The blast has **radius 1** — all
-  units (friend and foe) within 1 hex of the detonation point are potential targets; each is resolved with
-  a separate 2d6 roll.
-- **First-strike penalty:** The **first nuke detonated in the game** (by either side) costs the firing
-  player **−10 VP**. All subsequent nukes in the same game cost 0 VP. The penalty applies once per game,
-  not once per player.
-- **Suicide nukes (§18):** Any satellite (except SF and Shuttles) may be designated suicide at +1 pt
-  during setup. The suicide attack (ATK 5) has **radius 1 blast** hitting all units (friend and foe) in
-  range. The satellite is removed; the opponent scores VPs for its destruction. The first-strike penalty
-  applies to the first suicide detonation just as it does to OLR nukes.
-- A suicide satellite may use its regular weapons first and then detonate, or detonate before being attacked.
+**First-strike penalty:** The **first nuke detonated in the game** (by either side, either type) costs the firing player **−10 VP**. All subsequent nukes in the same game cost 0 VP. The penalty applies once per game, not once per player.
 
-> **Web game note:** Suicide nuke identity is hidden until detonation. VP cannot drop below 0.
+**Suicide Nukes (§18):** Any satellite except SF and Shuttles may be designated as suicide (+1 pt at setup). Detonation has ATK 5, blast radius 1, hits all units friend and foe in range. The satellite is removed and the opponent scores its kill VP. The first-strike penalty applies to the first suicide detonation just as it does to OLR nukes.
+
+> VP cannot drop below 0.
 
 ---
 
-## Supply and Resupply (§12)
+## Victory Points and Win Conditions
 
-An OWP or Shuttle being resupplied must enter the same hex as the Supply counter. During resupply, any
-or all contents (up to the receiving unit's capacity) may be transferred.
+### Scoring
 
-- **A unit being resupplied cannot attack** (Missile or Normal Combat) on that turn. It defends normally.
-- **A Shuttle cannot attack** on the turn it resupplies or provides resupply.
-- A Supply counter is removed from play when completely expended.
-- If the carrier is destroyed, supplies are destroyed and the enemy scores VPs.
-
-**Stolen Supplies (§12.2):** Enemy supplies may be captured (e.g., by an SF unit or Shuttle). Captured
-supplies may be used, but **not against their original owner**.
-
-> **Web game note:** The stolen supplies rule is not implemented. Supply interaction is limited to
-> friendly OWP/Shuttle/SS in the same hex.
-
----
-
-## OWP Rules (§17)
-
-- Maximum 3 OLRs per OWP per turn.
-- Maximum 1 nuke-carrying OLR per OWP per turn.
-- An OWP **cannot both fire OLRs and attack in Normal Combat** on the same turn.
-- An OWP may lay mines directly in its own hex without a rocket.
-- OWPs must use OLRs to launch nukes (cannot drop nukes locally).
-
----
-
-## Setup (§22)
-
-### Step-by-Step
-
-1. **Scenario Selection (§22.1):** Agree on Blockade or Total War (Strategic Campaign).
-2. **Force Selection (§22.2):** Each player secretly selects forces within the point budget. Costs vary by deployment zone.
-3. **Bookkeeping (§22.3):** Each player records on a separate sheet:
-   - Which satellites are Earth / Deep Space reinforcements
-   - Mines, missiles, and nuclear warheads carried by each OWP and Shuttle
-   - Total weapon stocks per side
-   - Which satellites carry suicide nukes
-4. **Die Roll (§22.4):** High roller is Player A (goes first on odd turns).
-5. **Placement:** Player A places one satellite face-down. Player B does the same. Alternate until
-   all starting satellites are placed. **Blank (decoy) counters** may be mixed in face-down.
-   Reinforcements remain off-map.
-6. **Reveal:** All counters flip face-up simultaneously; blank decoy counters are removed.
-
-> **Web game:** Decoy placement (step 5) is not implemented. Placement is manual (click a hex) or
-> random. Bookkeeping is handled through the Force Builder and Bookkeeping dialogs.
-
----
-
-## Victory Points
+VP are awarded at the end of every turn during the Scoring phase.
 
 | Event | VP |
 |-------|----|
@@ -347,70 +312,78 @@ supplies may be used, but **not against their original owner**.
 | EWR destroyed | +3 to destroyer |
 | Shuttle destroyed | +3 to destroyer |
 | OWP, HK, or SF destroyed | +1 to destroyer |
-| First nuke detonated (either side, either type) | −10 to firing player |
-| Subsequent nukes detonated | 0 VP cost |
+| First nuke detonated in the game | −10 to firing side |
+| Subsequent nukes detonated | 0 |
 
-> **Rulebook note (§23):** The unit cost table lists SF as worth 2 VP, but the VP scoring section
-> specifies "OWP or SF destroyed = 1 VP." The web game uses 1 VP, consistent with the scoring table.
-> HK (1 VP) appears in the unit table but not the VP scoring section; the web game awards 1 VP,
-> which aligns with the unit table.
-
-> **Web game note:** VP cannot drop below 0.
+> **Rulebook note:** SF is listed at 2 VP in the unit cost table but 1 VP in the scoring section. The web game uses 1 VP, consistent with the scoring table.
 
 ### Win Conditions
 
 | Scenario | Win Condition |
 |----------|---------------|
-| **Blockade** | Most VPs after turn 12. |
-| **Total War** | First to lead by **200 VP** at the end of any Scoring phase. |
+| **Total War** | First to lead by **200 VP** at end of any Scoring phase |
+| **Blockade** | Most VPs after **turn 12** |
 
-**Cease-fire (§23, board game only):** If 18 or more consecutive turns pass without either player
-detonating a nuke or destroying an enemy unit, the game ends immediately in a cease-fire. The player
-with the most VPs wins. Detonating any nuke ends a cease-fire instantly.
+---
 
-> **Web game:** The cease-fire condition is not tracked.
+## Supply and Resupply
+
+An OWP or Shuttle being resupplied must move into the same hex as the Supply Counter during Optional Movement. Any or all contents may be transferred.
+
+- **A unit being resupplied cannot attack** that turn. It may defend normally.
+- **A Shuttle cannot attack** on the turn it resupplies or provides resupply.
+- A Supply Counter is removed when completely expended.
+- If a unit carrying supplies is destroyed, those supplies are also destroyed.
+
+**Stolen Supplies (§12.2):** Captured enemy supplies may be used — but **not against their original owner**.
+
+> **Web game:** The stolen supplies rule is not implemented. Supply interaction is limited to friendly OWP / Shuttle / SS in the same hex.
+
+---
+
+## Setup
+
+1. **Scenario (§22.1):** Agree on Blockade or Total War.
+2. **Force Selection (§22.2):** Each player secretly chooses units within the point budget. Costs vary by deployment zone (see cost table above).
+3. **Bookkeeping (§22.3):** Record which satellites are Earth / Deep Space reinforcements, weapon loads per OWP and Shuttle, total weapon stocks, and which satellites carry suicide nukes.
+4. **Die Roll (§22.4):** High roller is Player A (goes first on odd turns).
+5. **Placement:** Player A places one satellite face-down. Player B does the same. Alternate until all starting satellites are placed. Blank **decoy counters** may be mixed in face-down. Reinforcements stay off-map.
+6. **Reveal:** All counters flip face-up simultaneously. Blank decoy counters are removed.
+
+> **Web game:** Decoy placement is not implemented. Placement is manual (click a hex) or random via Easy Start. Bookkeeping is handled through the Force Builder dialog.
 
 ---
 
 ## Key Rules Quick Reference
 
-- **Orbital movement is always mandatory and counterclockwise.** No unit may skip it.
-- **Fractional-rate satellites** must be tracked carefully across turns (web game handles automatically).
-- **Mine Combat fires before Normal Combat.** A mine can destroy a unit before it gets to fight back.
-- **Newly placed mines cannot fire on the turn they are placed** (orange NEW badge on token).
-- **Newly launched satellites skip Optional Movement** on their arrival turn.
-- **An OWP cannot both fire OLRs and attack in Normal Combat on the same turn** (§17).
-- **A unit being resupplied cannot attack that turn** (§12). It defends normally.
-- **The first nuke detonated costs −10 VP (first-strike penalty)**; all subsequent nukes in the same game cost 0 VP. Use your first nuke only when the tactical gain clearly outweighs the penalty.
-- **Suicide attacks hit all units in the hex — including your own** (§18). Position carefully before detonating.
-- **EWRs jammed:** any CJS within radius 2 (friendly or enemy) jams an EWR — it scores 0 VP that turn.
-- **Ring-1 retreat → atmospheric decay:** unit removed, no VP awarded to either side.
+Use this as a mid-game reminder. Click any rule for full context above.
+
+| Rule | Detail |
+|------|--------|
+| Orbital movement | Always mandatory, always counterclockwise. No unit may skip it. |
+| Turn order | Player A goes first on odd turns, Player B on even turns. Alternates every turn. |
+| Mine Combat priority | Nukes → Missiles → Mines. All fire before Normal Combat. |
+| New mines | Cannot fire the turn they are placed (orange NEW badge). |
+| New satellites | Skip Optional Movement on their arrival turn. |
+| OWP restriction | Cannot fire OLRs **and** attack in Normal Combat on the same turn (§17). |
+| Resupply restriction | A unit being resupplied cannot attack that turn. |
+| First-strike penalty | Only the **first** nuke detonated in the game costs −10 VP to the firer. All subsequent nukes are free. |
+| Suicide nukes | Blast hits all units in radius — including your own. Position carefully. |
+| CJS jamming | Any CJS within radius 2 jams EWRs to 0 VP and jams missiles at 50% (whether friend or foe). |
+| Atmospheric decay | A unit forced to retreat from ring 1 is removed. No VP awarded to either side. |
+| HK vs HK combat | The attacker rolls 2d6 on the CRT (ATK 4 − DEF 3 = diff +1 → need 9+, 27.7% hit chance). The defender does not automatically shoot back; they must wait for their own attack turn. |
 
 ---
 
 ## AI Player
 
 Either or both sides can be set to AI control using the **USA** / **APU** toggle buttons in the top bar.
-When a side is AI-controlled:
 
-- The AI auto-executes all phases for that side with a short countdown displayed in the top bar.
-- During Normal Combat the AI participates in alternating combat: it attacks once, then the opponent
-  attacks, alternating via `_aiOneCombatStep()` until all attackers are exhausted.
-- A **Take Control** button appears during an AI countdown so a human can interrupt and take over.
-- When both sides are AI-controlled the game runs continuously until a win condition is met (useful for
-  watching a full game — see the Demo / Watch a Game mode which uses seed 6018).
-
----
-
-## Known Gaps vs. Original Rulebook
-
-| § | Mechanic | Status |
-|---|----------|--------|
-| §19 | **MIRV split** — 3-MIRV and 7-MIRV should deploy as 3 or 7 independent warheads aimed at separate hexes | Not implemented; fires as a single nuke |
-| §23 | **Cease-fire** — 18 consecutive turns without a kill or nuke ends the game | Not tracked |
-| §22 | **Decoy placement** — blank counters placed face-down during setup, revealed simultaneously | Not implemented |
-| §6 | **Retreat into mined hex** — a retreating unit that enters a mined hex triggers that mine | Not checked |
-| §12.2 | **Stolen supplies** — captured enemy supplies usable (but not against original owner) | Not implemented |
+- The AI auto-executes all phases for that side with a short countdown displayed in the action bar.
+- During Normal Combat the AI participates in alternating combat — it attacks once, the opponent attacks, and so on until all attackers are exhausted.
+- A **Take Control** button appears during the AI countdown so a human can interrupt and take over at any point.
+- When both sides are AI-controlled the game runs continuously until the win condition is met. The **🎬 Watch a Game** mode uses this with seed 6018 for a deterministic, dramatic replay.
+- AI dice rolls use the same `Math.random()` as human play — browser-seeded from OS entropy, unpredictable each session. Only the demo uses a fixed seed (`mulberry32(6018)`) for deterministic replay.
 
 ---
 
@@ -421,31 +394,32 @@ When a side is AI-controlled:
 | Action | How |
 |--------|-----|
 | Select a unit | Click it during your active phase |
+| Choose from a stack | Click a multi-unit hex — a picker dialog lists all units |
 | Move a unit | Select it, then click a green destination hex |
 | Attack | During Normal Combat, click an enemy in the same hex |
-| Cancel selection | Click **✕ Cancel** in the Actions bar |
-| Zoom | Scroll wheel, pinch-to-zoom (touch), or ＋ / − widget (bottom-right) |
+| Cancel selection | Click **✕ Cancel** in the action bar |
+| Zoom | Scroll wheel, pinch-to-zoom, or ＋/− widget (bottom-right) |
 | Pan | Click and drag |
-| Reset view | Double-click canvas, or ⌂ in zoom widget |
-| Inspect hex | Hover to see ring number and unit IDs in status bar |
-| CJS radius | Hover over a CJS to highlight its jamming radius in green |
+| Reset view | Double-click canvas, or ⌂ in the zoom widget |
+| Inspect hex | Hover — ring number and unit IDs appear in the status bar |
+| CJS radius | Hover over a CJS to highlight its radius-2 jamming field in green |
 
-### Sidebar
+### Sidebar Panels
 
-| Panel | Appears When |
-|-------|-------------|
-| **Unit panel** | A unit is selected. Shows ATK/DEF/MOV, weapon loads, CJS modifier, available actions (⚔ Attack, ⛽ Resupply, ☢ Detonate). |
-| **Launch panel** | During Launch phases. Lists Earth reserves (ELR), Deep Space reinforcements, and OLR-capable launchers in orbit. |
-| **Unit Legend** | Always available — click to expand. Icon, full name, and rule notes for every unit type. |
+| Panel | When It Appears |
+|-------|-----------------|
+| **Unit panel** | A unit is selected. Shows ATK / DEF / MOV, weapon loads, CJS modifier, and available actions (⚔ Attack, ⛽ Resupply, ☢ Detonate). |
+| **Launch panel** | During Launch phases. Lists Earth reserves, Deep Space reinforcements, and OLR-capable launchers in orbit. |
+| **Unit Legend** | Always available — click to expand. Full name, icon, and rule notes for every unit type. |
 
 ### Token Shapes
 
-| Shape | Unit(s) |
-|-------|---------|
+| Shape | Unit |
+|-------|------|
 | Diamond | OWP |
 | Pentagon | HK |
 | Hexagon | CJS |
-| Circle | Mine, OLR |
+| Circle | Mine, OLR in flight |
 | Tall narrow rectangle | EWR |
 | Very tall thin rectangle | ELR |
 | Wide flat rectangle | Missile |
@@ -458,36 +432,48 @@ When a side is AI-controlled:
 
 | Indicator | Meaning |
 |-----------|---------|
-| Orange NEW badge on mine | Placed this turn — cannot fire yet |
+| Orange **NEW** badge on mine | Placed this turn — cannot fire yet |
 | Dimmed token (α = 0.45) | Unit has already acted this phase |
-| Green dot on EWR/COM/CJS | Scoring this turn |
-| Red dot on EWR/COM/CJS | Jammed — not scoring |
-| Orange ☄ toast | Atmospheric decay — unit removed, no VP |
-| Gold toast | Scoring summary |
+| Green dot on EWR / COM / CJS | Scoring this turn |
+| Red dot on EWR / COM / CJS | Jammed — not scoring |
+| Orange ☄ toast | Atmospheric decay — unit removed, no VP awarded |
+| Gold toast | Scoring phase summary |
 | VP delta in top bar | VP gained this turn by each side |
 
 ---
 
 ## Save / Load
 
-**Save** (top-right button) serializes the full game state to `localStorage`. **Load Saved Game** on the
-welcome screen restores it. One save slot per browser origin.
+**Save** (top-right button) serializes the full game state to `localStorage`. **Load Saved Game** on the welcome screen restores it. One save slot per browser origin.
 
 ---
 
-## Architecture (Web Game)
+## Known Gaps vs. Original Rulebook
 
-Single file: `orbit-war.html`. No build step.
+| § | Mechanic | Status |
+|---|----------|--------|
+| §19 | **MIRV split** — 3-MIRV and 7-MIRV should deploy as 3 or 7 independent warheads aimed at separate hexes | Not implemented; fires as a single nuke |
+| §23 | **Cease-fire** — 18 consecutive turns without a kill or nuke ends the game | Not tracked |
+| §22 | **Decoy placement** — blank counters placed face-down during setup, revealed simultaneously | Not implemented |
+| §6 | **Retreat into mined hex** — retreating into a mined hex triggers that mine immediately | Not checked |
+| §12.2 | **Stolen supplies** — captured enemy supplies usable (but not against original owner) | Not implemented |
+
+---
+
+## Architecture
+
+Single file: `orbit-war.html`. No build step, no dependencies except Google Fonts.
 
 ```
 Engine              — game state, rules enforcement, all phase logic, serialization
 Renderer            — Canvas 2D drawing (board, units, overlays, zoom/pan)
 UI                  — DOM interaction, dialogs, force builder, phase flow
 SpotlightTutorial   — overlay walkthrough (17 steps, live engine)
-Demo                — autonomous AI autoplay for the welcome screen
+AIPlayer            — AI decision logic for launches, movement, and combat
+Demo                — autonomous AI autoplay for the welcome screen (seed 6018)
 ```
 
-Supporting structures: `TUT_STEPS[]`, `PHASES[]` (9), `UTYPES{}`, `SCENARIOS{}`, `QUICK_STARTS{}`.
+Supporting data: `TUT_STEPS[]`, `PHASES[]` (9), `UTYPES{}`, `SCENARIOS{}`, `QUICK_STARTS{}`.
 
 ### Key Engine Methods
 
@@ -505,7 +491,7 @@ eng.detonateSuicide(uid)                       §18 suicide nuke, blast radius 1
 eng._retreat(u)                                ring-1 → atmospheric decay
 eng._score()                                   passive VP; stores state.scoringSummary
 eng._inCone(hex, side)                         returns bool — EWR/COM scoring check
-eng.serialize() / deserialize()                JSON save/load
+eng.serialize() / deserialize()                JSON save/load to localStorage
 ```
 
 ### Key State Fields
@@ -519,32 +505,10 @@ state.scoringSummary    {gains, events[]} → scoring toast
 state.vpLastTurn        snapshot for delta display in top bar
 state.earthRot          0–5, increments every 4th turn
 state.elrLaunches       {usa, apu} — per-turn ELR counter, reset each TURN_TRACK
-state.combatTurn        'usa'|'apu'|null — whose turn it is to attack in Normal Combat
-state.firstNukeFired    bool — true after the first nuke ever detonates (enables free subsequent nukes)
-state.nukeEvents[]      [{hex, blastHexes[]}] — blast animations rendered by Renderer
+state.combatTurn        'usa'|'apu'|null — whose turn to attack in Normal Combat
+state.firstNukeFired    bool — true after first nuke detonates (subsequent nukes cost 0 VP)
+state.nukeEvents[]      [{hex, blastHexes[]}] — blast animation data for Renderer
 ```
-
----
-
-## Scenarios
-
-### Blockade
-
-| Side | Points | Turn Limit |
-|------|:------:|:----------:|
-| APU | 45 | 12 |
-| USA | 35 | 12 |
-
-Asymmetric and deliberately unbalanced. Win condition: most VPs after turn 12. Recommended to play twice, swapping sides.
-
-### Total War (Strategic Campaign)
-
-| Side | Points | Turn Limit |
-|------|:------:|:----------:|
-| USA | 100 | None |
-| APU | 100 | None |
-
-Symmetric full-force game. Win condition: lead by 200 VP at end of any Scoring phase.
 
 ---
 
