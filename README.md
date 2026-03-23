@@ -14,7 +14,7 @@ Victory Points until one side leads by 200 VP.
 
 ## How to Play (Web Game)
 
-Open `orbit-war_17.html` in any modern browser. No installation, no build step, no server required.
+Open `orbit-war.html` in any modern browser. No installation, no build step, no server required.
 
 ### Entry Points
 
@@ -24,7 +24,7 @@ Open `orbit-war_17.html` in any modern browser. No installation, no build step, 
 | **Total War** | Symmetric 100 vs 100 pts. Full force composition. Ends at a 200 VP lead or when the turn limit is reached. |
 | **⚡ Easy Start** | Loads a pre-built Total War force for both sides, random placement, straight to Turn 1. |
 | **📡 Tutorial** | Interactive 17-step spotlight walkthrough on a live board. Covers two full turns, every mechanic explained in context. Hands off to live play at the Combat phase. |
-| **🎬 Watch a Game** | Demo autoplay (seed 1024). AI controls both sides at SLOW / NORMAL / FAST speed. |
+| **🎬 Watch a Game** | Demo autoplay (seed 6024). AI controls both sides at SLOW / NORMAL / FAST speed. |
 
 A second **Quick Tutorial** strip in the bottom bar is available mid-session.
 
@@ -205,18 +205,27 @@ Satellites may be held off-map as reinforcements and brought in during the game:
 
 ### Combat Results Table (CRT)
 
-Combat differential = Attacker ATK − Defender effective DEF. CJS modifiers apply before the lookup.
+The web game uses the **2d6 dice-roll system** from the original rulebook CRT. Combat differential = total
+Attacker ATK − total Defender effective DEF (after CJS modifiers). Roll 2d6; if the sum meets or exceeds
+the threshold the result is **HIT** (Defender Eliminated); otherwise it is **MISS**.
 
-| Differential | Result | Meaning |
-|:---:|:---:|---------|
-| +3 to +6 | **DE** | Defender Eliminated |
-| +1 to +2 | **DR** | Defender Retreats (1 hex toward Earth) |
-| 0 to −1 | **EX** | Exchange — both destroyed |
-| −2 to −3 | **AR** | Attacker Retreats (1 hex toward Earth) |
-| −4 to −6 | **AE** | Attacker Eliminated |
+| Differential | Threshold | Approx. Odds |
+|:---:|:---:|:---:|
+| +5 or higher | 5+ | 83.3% |
+| +4 | 6+ | 72.2% |
+| +3 | 7+ | 58.3% |
+| +2 | 8+ | 41.6% |
+| +1 | 9+ | 27.7% |
+| 0 | 10+ | 16.6% |
+| −1 or −2 | 11+ | 8.3% |
+| −3 or lower | impossible | 0% |
 
-> **Important:** A unit retreating to **ring 1** undergoes **atmospheric decay** — it is removed with no
-> VP awarded to either side (orange ☄ toast in the web game).
+The combat dialog shows the threshold and odds before you commit the roll. You roll first, then choose
+whether to apply. Multiple attackers and multiple defenders can be selected — all their ATK and DEF values
+are summed for a single roll (stacked combat).
+
+> **Note:** The web game's CRT produces only HIT or MISS (Defender Eliminated or no effect). The original
+> board game's full DR/EX/AR/AE retreat table is not used in the web implementation.
 
 ### CJS Effect on Combat
 
@@ -230,9 +239,17 @@ These modifiers stack if multiple CJS units are in range. A CJS effectively has 
 
 - Each unit may only **attack once** per turn.
 - A unit may be **attacked multiple times** in the same turn.
-- Multiple attackers vs. one defender each resolve separately and sequentially.
 - A player may attack any enemy unit in the **same hex**.
 - Mine Combat resolves **before** Normal Combat — mines can destroy or weaken units before they fight back.
+- **Stacked combat:** Multiple units on each side may be grouped into a single combined roll. All selected
+  attackers' ATK values are summed, all selected defenders' DEF values are summed, and one 2d6 roll
+  resolves the entire stack. All defending units are eliminated on a HIT.
+- **Alternating combat turns:** At the start of Normal Combat, the player who goes first this turn (Player A
+  on odd turns, Player B on even turns) makes one attack, then the opponent attacks, and so on, alternating
+  until both sides have exhausted their attackers. The current attacker's side is shown in the action bar.
+  A **Pass** button lets a side yield their turn if they choose not to attack.
+- **Unit picker:** When multiple friendly units occupy the same hex, clicking the hex opens a picker dialog
+  so you can choose exactly which unit to select or include in a stacked attack.
 
 ### Mine Combat
 
@@ -254,11 +271,16 @@ Missiles (ATK 5) fire automatically during Mine Combat phase, then are removed.
 
 ### Nuke and Suicide Nuke
 
-- Nukes (ATK 5) placed by OLR auto-detonate during Mine Combat phase.
-- Detonating any nuke costs the owner **−10 VP** and ends any active cease-fire.
+- Nukes (ATK 5) placed by OLR auto-detonate during Mine Combat phase. The blast has **radius 1** — all
+  units (friend and foe) within 1 hex of the detonation point are potential targets; each is resolved with
+  a separate 2d6 roll.
+- **First-strike penalty:** The **first nuke detonated in the game** (by either side) costs the firing
+  player **−10 VP**. All subsequent nukes in the same game cost 0 VP. The penalty applies once per game,
+  not once per player.
 - **Suicide nukes (§18):** Any satellite (except SF and Shuttles) may be designated suicide at +1 pt
-  during setup. The suicide attack (ATK 5) hits **all units in the hex, friendly and enemy**. The
-  satellite is removed; the opponent scores VPs for its destruction.
+  during setup. The suicide attack (ATK 5) has **radius 1 blast** hitting all units (friend and foe) in
+  range. The satellite is removed; the opponent scores VPs for its destruction. The first-strike penalty
+  applies to the first suicide detonation just as it does to OLR nukes.
 - A suicide satellite may use its regular weapons first and then detonate, or detonate before being attacked.
 
 > **Web game note:** Suicide nuke identity is hidden until detonation. VP cannot drop below 0.
@@ -326,7 +348,8 @@ supplies may be used, but **not against their original owner**.
 | EWR destroyed | +3 to destroyer |
 | Shuttle destroyed | +3 to destroyer |
 | OWP, HK, or SF destroyed | +1 to destroyer |
-| Nuke or suicide nuke detonated | −10 to owner |
+| First nuke detonated (either side, either type) | −10 to firing player |
+| Subsequent nukes detonated | 0 VP cost |
 
 > **Rulebook note (§23):** The unit cost table lists SF as worth 2 VP, but the VP scoring section
 > specifies "OWP or SF destroyed = 1 VP." The web game uses 1 VP, consistent with the scoring table.
@@ -359,10 +382,24 @@ with the most VPs wins. Detonating any nuke ends a cease-fire instantly.
 - **Newly launched satellites skip Optional Movement** on their arrival turn.
 - **An OWP cannot both fire OLRs and attack in Normal Combat on the same turn** (§17).
 - **A unit being resupplied cannot attack that turn** (§12). It defends normally.
-- **Detonating any nuke costs 10 VP and ends any cease-fire** (§19). Use only when the tactical gain clearly outweighs the penalty.
+- **The first nuke detonated costs −10 VP (first-strike penalty)**; all subsequent nukes in the same game cost 0 VP. Use your first nuke only when the tactical gain clearly outweighs the penalty.
 - **Suicide attacks hit all units in the hex — including your own** (§18). Position carefully before detonating.
 - **EWRs jammed:** any CJS within radius 2 (friendly or enemy) jams an EWR — it scores 0 VP that turn.
 - **Ring-1 retreat → atmospheric decay:** unit removed, no VP awarded to either side.
+
+---
+
+## AI Player
+
+Either or both sides can be set to AI control using the **USA** / **APU** toggle buttons in the top bar.
+When a side is AI-controlled:
+
+- The AI auto-executes all phases for that side with a short countdown displayed in the top bar.
+- During Normal Combat the AI participates in alternating combat: it attacks once, then the opponent
+  attacks, alternating via `_aiOneCombatStep()` until all attackers are exhausted.
+- A **Take Control** button appears during an AI countdown so a human can interrupt and take over.
+- When both sides are AI-controlled the game runs continuously until a win condition is met (useful for
+  watching a full game — see the Demo / Watch a Game mode which uses seed 6024).
 
 ---
 
@@ -441,7 +478,7 @@ welcome screen restores it. One save slot per browser origin.
 
 ## Architecture (Web Game)
 
-Single file: `orbit-war_17.html` (~5,233 lines). No build step.
+Single file: `orbit-war.html`. No build step.
 
 ```
 Engine              — game state, rules enforcement, all phase logic, serialization
@@ -461,10 +498,12 @@ eng.fireOLR(id, type, hex)                     OLR launch → appends to state.l
 eng.launchFromEarth(id, hex)                   ELR launch (rings 1–3 only, max 3/turn)
 eng.bringInDeepSpace(id, hex)                  deep-space entry at ring 10
 eng.moveUnit(id, hex)                          optional move with gravity assist (+1 inward free)
-eng.combat(atkId, defId)                       CRT lookup + apply; returns {ok, res}
+eng.combat(atkId, defId [,diceRoll])           single-unit CRT: validate then delegate to _doCombat
+eng.stackedCombat(atkIds, defIds [,diceRoll])  multi-unit combined ATK/DEF, single 2d6 roll
+eng._doCombat(atkIds, defIds [,diceRoll])      core 2d6 resolution shared by combat() and stackedCombat()
 eng.transferSupply(supId, recId, {mines,missiles,nukes})
-eng.detonateSuicide(uid)                       §18 suicide nuke
-eng._retreat(u)                                DR/AR: move inward; ring-1 → atmospheric decay
+eng.detonateSuicide(uid)                       §18 suicide nuke, blast radius 1
+eng._retreat(u)                                ring-1 → atmospheric decay
 eng._score()                                   passive VP; stores state.scoringSummary
 eng._inCone(hex, side)                         returns bool — EWR/COM scoring check
 eng.serialize() / deserialize()                JSON save/load
@@ -481,6 +520,9 @@ state.scoringSummary    {gains, events[]} → scoring toast
 state.vpLastTurn        snapshot for delta display in top bar
 state.earthRot          0–5, increments every 4th turn
 state.elrLaunches       {usa, apu} — per-turn ELR counter, reset each TURN_TRACK
+state.combatTurn        'usa'|'apu'|null — whose turn it is to attack in Normal Combat
+state.firstNukeFired    bool — true after the first nuke ever detonates (enables free subsequent nukes)
+state.nukeEvents[]      [{hex, blastHexes[]}] — blast animations rendered by Renderer
 ```
 
 ---
