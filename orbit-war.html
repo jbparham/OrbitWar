@@ -3728,7 +3728,7 @@ class UI {
       const tut=new SpotlightTutorial(this); tut.start();
     });
     document.getElementById('btn-demo')?.addEventListener('click',()=>{
-      const demo=new Demo(this); demo.start();
+      this._activeDemo=new Demo(this); this._activeDemo.start();
     });
     document.getElementById('btn-load-game').addEventListener('click',()=>this._loadGame().catch(e=>this._toast('Load error: '+e.message)));
     document.getElementById('btn-cjs-overlay').addEventListener('click',()=>{
@@ -3755,6 +3755,19 @@ class UI {
     document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
     document.getElementById(id).classList.add('active');
     if (id === 'scr-game') { this.ren.resize(); this.ren._updateZoomLabel(); }
+    if (id === 'scr-welcome') {
+      // Stop any active demo
+      if(this._activeDemo&&this._activeDemo._active){
+        this._activeDemo._active=false;
+        clearTimeout(this._activeDemo._timer);
+        if(this._activeDemo._origRandom){Math.random=this._activeDemo._origRandom;this._activeDemo._origRandom=null;}
+        document.getElementById('demo-bar')?.classList.remove('active');
+        this._activeDemo=null;
+      }
+      // Turn off AI for both sides
+      this._aiSides={usa:false,apu:false};
+      this._cancelAICountdown(false);
+    }
   }
 
   _easyStart(){
@@ -6279,8 +6292,40 @@ class SpotlightTutorial {
 class AIPlayer {
   constructor(eng){ this.eng=eng; }
 
+  // ── Helpers ──────────────────────────────────────────────────
+  _closest(from,candidates){
+    if(!candidates.length)return null;
+    return candidates.slice().sort((a,b)=>hexDist(from,a)-hexDist(from,b))[0];
+  }
+
+  // Friendly unit count at a hex (excludes the unit being moved itself)
+  _friendlyCount(hex,side,excludeId=null){
+    return this.eng.state.units.filter(u=>
+      u.side===side&&!u.destroyed&&u.hex&&
+      u.hex.q===hex.q&&u.hex.r===hex.r&&u.id!==excludeId
+    ).length;
+  }
+
+  // Total units (any side) at a hex
+  _totalCount(hex,excludeId=null){
+    return this.eng.state.units.filter(u=>
+      !u.destroyed&&u.hex&&u.hex.q===hex.q&&u.hex.r===hex.r&&u.id!==excludeId
+    ).length;
+  }
+
+  // Kill probability from CRT for nuke ATK 6 vs unit DEF
+  _nukeKillP(def){
+    const diff=6-def;
+    const t=crtThreshold(diff);
+    const cnt=[0,0,1,2,3,4,5,6,5,4,3,2,1];
+    let h=0; for(let i=Math.max(2,t);i<=12;i++) h+=cnt[i]||0;
+    return h/36;
+  }
+
+  // ── Launch phase ─────────────────────────────────────────────
   _aiLaunch(side){
     const eng=this.eng;
+    // 1. ELR launches: priority combat → support → infrastructure
     const priority={HK:0,OWP:1,SHUTTLE:2,EWR:3,COM:4,CJS:5,SF:6};
     const queue=eng.getEarthUnits(side)
       .filter(u=>u.typeId!=='ELR'&&!u.launched)
@@ -6290,22 +6335,30 @@ class AIPlayer {
     for(const u of queue){
       if(used>=3||used>=avail)break;
       const ring=Math.min(3,1+(used%3));
-      const cands=hexRing({q:0,r:0},ring).filter(h=>eng.getAt(h).length===0);
+      // Prefer uncrowded landing hexes (fewer than 2 friendly units)
+      const cands=hexRing({q:0,r:0},ring).filter(h=>{
+        const at=eng.getAt(h);
+        return at.length<2; // leave room for stacking but avoid pile-ups
+      });
       if(!cands.length)continue;
-      const r=eng.launchFromEarth(u.id,cands[Math.floor(Math.random()*cands.length)]);
+      // Pick the least-occupied hex
+      cands.sort((a,b)=>this._totalCount(a)-this._totalCount(b));
+      const r=eng.launchFromEarth(u.id,cands[0]);
       if(r.ok)used++;
     }
-    eng.getDeepSpaceUnits(side).filter(u=>!u.launched).slice(0,1).forEach(u=>{
-      const c=hexRing({q:0,r:0},10).filter(h=>eng.getAt(h).length===0);
-      if(c.length)eng.bringInDeepSpace(u.id,c[0]);
+
+    // 2. Deep-space reinforcements: bring ALL available units (not just 1)
+    eng.getDeepSpaceUnits(side).filter(u=>!u.launched).forEach(u=>{
+      const c=hexRing({q:0,r:0},10).filter(h=>this._totalCount(h)<2);
+      if(c.length) eng.bringInDeepSpace(u.id,c[0]);
     });
+
+    // 3. OLR launches (nukes & missiles)
     eng.resetOLRCounters(side);
     const myVP=eng.state.vp[side];
-    const enemies=eng.state.units.filter(u=>u.side!==side&&!u.destroyed&&u.hex);
     eng.getOLRLaunchers(side).forEach(launcher=>{
       let fired=0;
-      // Nuke: evaluate first — only fire if VP can absorb the −10 penalty
-      // and a target hex scores positively after accounting for friendly fire.
+      // Nuke: only fire if VP can absorb penalty and expected gain is positive
       if(fired<3&&launcher.weapons?.nukes>0&&myVP>=12){
         const nukeHex=this._bestNukeTarget(launcher.hex,side);
         if(nukeHex){
@@ -6313,18 +6366,22 @@ class AIPlayer {
           if(r.ok)fired++;
         }
       }
-      // Missiles: fire at enemies in range, or ring-1 denial — never at empty hexes
+      // Missiles: prioritize high-value targets, then area denial
       while(fired<3&&launcher.weapons?.missiles>0){
         const inRange=hexesInRange(launcher.hex,3).filter(h=>{
           const r=getRing(h);return r>=1&&r<=10&&(h.q!==launcher.hex.q||h.r!==launcher.hex.r);
         });
-        // Priority 1: hex containing an enemy unit
-        const hot=inRange.filter(h=>eng.getAt(h).some(u=>u.side!==side&&!u.destroyed&&u.typeId!=='MINE'));
-        // Priority 2: ring-1 area denial (only if ring 1 is reachable from this launcher)
+        // Score each target hex: value of enemy units present
+        const unitVal={SS:100,OWP:40,HK:30,EWR:20,CJS:15,COM:10,SHUTTLE:8,SUPPLY:5,SF:1};
+        const scored=inRange.map(h=>{
+          const enemies=eng.getAt(h).filter(u=>u.side!==side&&!u.destroyed&&u.typeId!=='MINE');
+          if(!enemies.length)return null;
+          const v=enemies.reduce((s,u)=>s+(unitVal[u.typeId]||1),0);
+          return {h,v};
+        }).filter(Boolean).sort((a,b)=>b.v-a.v);
+        // Priority 2: ring-1 denial if no juicy targets
         const ring1=inRange.filter(h=>getRing(h)===1&&eng.getAt(h).length===0);
-        const dest=hot.length?hot[Math.floor(Math.random()*hot.length)]
-          :ring1.length?ring1[0]
-          :null; // no valid target — save missiles
+        const dest=scored.length?scored[0].h:ring1.length?ring1[0]:null;
         if(!dest)break;
         const r=eng.fireOLR(launcher.id,'MISSILE',dest);
         if(r.ok)fired++;else break;
@@ -6332,49 +6389,48 @@ class AIPlayer {
     });
   }
 
+  // ── Nuke scoring ─────────────────────────────────────────────
   // Net VP score of a nuke blast centred on tgt from side's perspective.
-  // First nuke ever fired in the game costs −10 VP (first-strike penalty);
-  // all subsequent nukes have no VP cost. Each unit in blast radius 1 is
-  // weighted by kill probability (crt diff) and its VP kill value.
   _nukeBlastScore(tgt,side){
     const eng=this.eng;
-    const vpKill={EWR:3,SHUTTLE:3,OWP:1,HK:1,SF:1,SS:1,COM:0,CJS:0,SUPPLY:0,MINE:0};
+    const vpKill={EWR:3,SHUTTLE:3,OWP:5,HK:3,SF:2,SS:10,COM:1,CJS:1,SUPPLY:0,MINE:0};
     const blast=hexesInRange(tgt,1).filter(h=>getRing(h)>=1&&getRing(h)<=10);
-    let score=eng.state.firstNukeFired?0:-10; // first-strike penalty only
+    let score=eng.state.firstNukeFired?0:-10; // first-strike penalty only once
     eng.state.units
       .filter(u=>!u.destroyed&&u.hex&&u.typeId!=='NUKE'&&
         blast.some(h=>h.q===u.hex.q&&h.r===u.hex.r))
       .forEach(u=>{
-        const diff=5-(u.type?.def??0);
-        // Kill probability estimate from CRT: diff ≥3 → DE (1.0), 1–2 → DR (0.5), ≤0 → 0.1
-        const killP=diff>=3?1:diff>=1?0.5:0.1;
+        const killP=this._nukeKillP(u.type?.def??0);
         const vp=vpKill[u.typeId]??0;
-        if(u.side!==side) score+=vp*killP;        // enemy kill: gain VP
-        else              score-=(vp||1)*killP;    // friendly fire: lose VP
+        if(u.side!==side) score+=vp*killP;     // enemy kill: gain VP
+        else              score-=(vp||1)*killP; // friendly fire: lose VP
       });
     return score;
   }
 
-  // Returns the best hex within OLR range 3 of launcherHex to fire a nuke,
-  // or null if no target yields a positive net score.
+  // Returns the best hex within OLR range 3 to fire a nuke, or null.
   _bestNukeTarget(launcherHex,side){
     const inRange=hexesInRange(launcherHex,3).filter(h=>{
       const r=getRing(h);return r>=1&&r<=10&&(h.q!==launcherHex.q||h.r!==launcherHex.r);
     });
-    let bestHex=null,bestScore=0;
+    let bestHex=null,bestScore=0.5; // minimum threshold to bother firing
     for(const tgt of inRange){
       const score=this._nukeBlastScore(tgt,side);
       if(score>bestScore){bestScore=score;bestHex=tgt;}
     }
-    return bestHex; // null if no profitable target found
+    return bestHex;
   }
 
+  // ── Movement phase ────────────────────────────────────────────
   _aiMove(side){
     const eng=this.eng;
+    const MAX_FRIENDLY=3; // hard cap: never stack more than 3 friendly units in one hex
+
     eng.state.units
       .filter(u=>u.side===side&&!u.destroyed&&u.hex&&!u.moved&&!u.launched&&u.typeId!=='MINE')
       .forEach(u=>{
         const ring=getRing(u.hex);
+        // Build list of reachable hexes (with gravity assist)
         const valid=[];
         hexesInRange(u.hex,u.type.mov+1).forEach(h=>{
           if(h.q===u.hex.q&&h.r===u.hex.r)return;
@@ -6382,61 +6438,157 @@ class AIPlayer {
           if(d<=u.type.mov+g&&tr>=1&&tr<=10)valid.push(h);
         });
         if(!valid.length)return;
+
+        // Density filter: reject hexes already at or above friendly cap
+        const sparse=valid.filter(h=>this._friendlyCount(h,side,u.id)<MAX_FRIENDLY);
+
         const enemies=eng.state.units.filter(e=>e.side!==side&&!e.destroyed&&e.hex);
         let dest=null;
+
         if(u.typeId==='HK'&&enemies.length){
-          const val={SS:100,OWP:40,HK:30,EWR:20,CJS:15,SHUTTLE:10,COM:5};
-          const target=enemies.slice().sort((a,b)=>(val[b.typeId]||0)-(val[a.typeId]||0))[0];
-          dest=this._closest(target.hex,valid);
+          // Chase highest-value enemy, prefer uncrowded intercept hexes
+          const unitVal={SS:100,OWP:40,HK:30,EWR:20,CJS:15,COM:10,SHUTTLE:8,SUPPLY:5,SF:1};
+          const target=enemies.slice().sort((a,b)=>(unitVal[b.typeId]||0)-(unitVal[a.typeId]||0))[0];
+          const pool=sparse.length?sparse:valid;
+          dest=this._closest(target.hex,pool);
+
         } else if(u.typeId==='EWR'){
-          const cone=valid.filter(h=>eng._inCone(h,side==='usa'?'apu':'usa'));
-          dest=cone.length?cone[Math.floor(Math.random()*cone.length)]:null;
-        } else if((u.typeId==='COM'||u.typeId==='CJS')&&valid.length){
-          const friendly=valid.filter(h=>eng._inCone(h,side));
-          dest=friendly.length?friendly[0]:null;
+          // Move into enemy cone; prefer hexes not already occupied by another friendly EWR
+          const myEWRHexes=new Set(
+            eng.state.units
+              .filter(e=>e.side===side&&!e.destroyed&&e.hex&&e.typeId==='EWR'&&e.id!==u.id)
+              .map(e=>`${e.hex.q},${e.hex.r}`)
+          );
+          const enemySide=side==='usa'?'apu':'usa';
+          const cone=sparse.filter(h=>eng._inCone(h,enemySide)&&!myEWRHexes.has(`${h.q},${h.r}`));
+          const fallback=sparse.filter(h=>eng._inCone(h,enemySide));
+          const pool=cone.length?cone:fallback.length?fallback:sparse;
+          dest=pool.length?pool[Math.floor(Math.random()*pool.length)]:null;
+
+        } else if(u.typeId==='COM'){
+          // Spread into own cone, prefer hexes not already crowded with COMSATs
+          const myComHexes=new Set(
+            eng.state.units
+              .filter(e=>e.side===side&&!e.destroyed&&e.hex&&
+                (e.typeId==='COM'||e.typeId==='CJS')&&e.id!==u.id)
+              .map(e=>`${e.hex.q},${e.hex.r}`)
+          );
+          const cone=sparse.filter(h=>eng._inCone(h,side)&&!myComHexes.has(`${h.q},${h.r}`));
+          const fallback=sparse.filter(h=>eng._inCone(h,side));
+          const pool=cone.length?cone:fallback.length?fallback:sparse;
+          dest=pool.length?pool[0]:null;
+
+        } else if(u.typeId==='CJS'){
+          // Position near friendly units to provide DEF bonus; spread from other CJS
+          const myCJSHexes=new Set(
+            eng.state.units
+              .filter(e=>e.side===side&&!e.destroyed&&e.hex&&e.typeId==='CJS'&&e.id!==u.id)
+              .map(e=>`${e.hex.q},${e.hex.r}`)
+          );
+          const cone=sparse.filter(h=>eng._inCone(h,side)&&!myCJSHexes.has(`${h.q},${h.r}`));
+          const fallback=sparse.filter(h=>eng._inCone(h,side));
+          const pool=cone.length?cone:fallback.length?fallback:sparse;
+          dest=pool.length?pool[Math.floor(Math.random()*pool.length)]:null;
+
         } else if(u.typeId==='OWP'){
-          const inner=valid.filter(h=>getRing(h)<ring);
-          dest=inner.length?inner[0]:null;
+          // Patrol ring 4-6: move toward that band; avoid piling up
+          const TARGET_RING_MIN=4,TARGET_RING_MAX=6;
+          const inBand=sparse.filter(h=>{const r=getRing(h);return r>=TARGET_RING_MIN&&r<=TARGET_RING_MAX;});
+          if(inBand.length){
+            // Already targeting the band — pick least-occupied hex in band
+            inBand.sort((a,b)=>this._friendlyCount(a,side,u.id)-this._friendlyCount(b,side,u.id));
+            dest=inBand[0];
+          } else if(ring>TARGET_RING_MAX){
+            // Too far out: move inward
+            const inner=sparse.filter(h=>getRing(h)<ring);
+            dest=inner.length?inner[0]:null;
+          } else {
+            // Too close: move outward
+            const outer=sparse.filter(h=>getRing(h)>ring);
+            dest=outer.length?outer[0]:null;
+          }
+
+        } else if(u.typeId==='SHUTTLE'){
+          // 1. If carrying a supply, move toward the nearest OWP/HK needing ammo
+          // 2. Else move toward nearest supply counter on same side
+          if(u.carriedSupplyId){
+            const needy=eng.state.units.filter(e=>
+              e.side===side&&!e.destroyed&&e.hex&&e.weapons&&
+              (e.typeId==='OWP'||e.typeId==='HK')&&
+              ((e.weapons.missiles||0)+(e.weapons.mines||0)+(e.weapons.nukes||0))<(e.type.maxWep||4)
+            );
+            if(needy.length){
+              const t=needy.slice().sort((a,b)=>hexDist(u.hex,a.hex)-hexDist(u.hex,b.hex))[0];
+              dest=this._closest(t.hex,sparse.length?sparse:valid);
+            }
+          } else {
+            const supplies=eng.state.units.filter(e=>
+              e.side===side&&!e.destroyed&&e.hex&&e.typeId==='SUPPLY'&&!e.carriedBy
+            );
+            if(supplies.length){
+              const t=supplies.slice().sort((a,b)=>hexDist(u.hex,a.hex)-hexDist(u.hex,b.hex))[0];
+              dest=this._closest(t.hex,sparse.length?sparse:valid);
+            }
+          }
         }
+
         if(dest)eng.moveUnit(u.id,dest);
       });
 
-    // Suicide nuke: an OWP with a nuke detonates if the blast is profitable
-    // enough to justify losing the OWP (−10 nuke VP + 1 VP opponent kill credit).
-    // Only trigger when VP is high enough to absorb the cost.
+    // Suicide nuke: OWP detonates if blast net score justifies losing the OWP
     const myVP=eng.state.vp[side];
     if(myVP>=12){
       eng.state.units
         .filter(u=>u.side===side&&!u.destroyed&&u.hex&&u.typeId==='OWP'&&
           u.weapons?.nukes>0&&!u.moved)
         .forEach(owp=>{
-          // _nukeBlastScore already deducts −10; subtract 1 more for OWP kill VP to opponent
+          // subtract 1 extra for OWP kill VP awarded to opponent
           const score=this._nukeBlastScore(owp.hex,side)-1;
           if(score>3) eng.detonateSuicide(owp.id);
         });
     }
   }
 
+  // ── Combat phase ─────────────────────────────────────────────
   _aiCombat(side){
     const eng=this.eng;
-    eng.state.units
-      .filter(u=>u.side===side&&!u.destroyed&&u.hex&&u.type.atk>0&&!u.attackedThisTurn)
-      .filter(u=>!(u.typeId==='OWP'&&(u.olrsFiredThisTurn||0)>0))
-      .forEach(atk=>{
-        const targets=eng.state.units.filter(e=>
-          !e.destroyed&&e.hex&&e.side!==side&&
-          e.hex.q===atk.hex.q&&e.hex.r===atk.hex.r&&e.typeId!=='MINE'
-        );
-        if(!targets.length)return;
-        const pri={SS:0,OWP:1,HK:2,CJS:3,EWR:4,COM:5,SHUTTLE:6,SUPPLY:7};
-        targets.sort((a,b)=>(pri[a.typeId]??9)-(pri[b.typeId]??9));
-        eng.combat(atk.id,targets[0].id);
-      });
-  }
+    const pri={SS:0,OWP:1,HK:2,CJS:3,EWR:4,COM:5,SHUTTLE:6,SUPPLY:7};
 
-  _closest(from,candidates){
-    if(!candidates.length)return null;
-    return candidates.slice().sort((a,b)=>hexDist(from,a)-hexDist(from,b))[0];
+    // Find all contested hexes where this side has attackers
+    const myUnits=eng.state.units.filter(u=>
+      u.side===side&&!u.destroyed&&u.hex&&u.type.atk>0&&!u.attackedThisTurn&&
+      !(u.typeId==='OWP'&&(u.olrsFiredThisTurn||0)>0)
+    );
+
+    // Group attackers by hex
+    const hexMap=new Map();
+    for(const atk of myUnits){
+      const key=`${atk.hex.q},${atk.hex.r}`;
+      if(!hexMap.has(key))hexMap.set(key,[]);
+      hexMap.get(key).push(atk);
+    }
+
+    for(const [key,atkGroup] of hexMap){
+      const [q,r]=key.split(',').map(Number);
+      const hex={q,r};
+      const defenders=eng.state.units.filter(e=>
+        !e.destroyed&&e.hex&&e.side!==side&&
+        e.hex.q===q&&e.hex.r===r&&e.typeId!=='MINE'
+      );
+      if(!defenders.length)continue;
+
+      // Sort defenders by priority (highest-value first)
+      defenders.sort((a,b)=>(pri[a.typeId]??9)-(pri[b.typeId]??9));
+
+      if(atkGroup.length>1){
+        // Use stacked combat when multiple attackers share the hex
+        const defGroup=defenders; // attack all defenders at once
+        eng.stackedCombat(atkGroup.map(u=>u.id),defGroup.map(u=>u.id));
+      } else {
+        // Single attacker: target highest-priority enemy
+        eng.combat(atkGroup[0].id,defenders[0].id);
+      }
+    }
   }
 }
 
